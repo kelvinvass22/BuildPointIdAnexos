@@ -14,3 +14,9 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app/
+
+# Permissão de execução para o script
+RUN chmod +x /app/entrypoint.sh
+
+# Define o entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]

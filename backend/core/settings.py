@@ -184,7 +184,11 @@ AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
 AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
 AWS_REKOGNITION_COLLECTION_ID = env("AWS_REKOGNITION_COLLECTION_ID", default="buildpoint-operarios")
 
-GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
+# --- Geolocalização (por enqunato, iremos usar uma api gratuita) ---
+# GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
+
+GEOAPIFY_API_KEY = env("GEOAPIFY_API_KEY", default="")
+
 
 BIRDID_API_URL = env("BIRDID_API_URL", default="")
 BIRDID_API_TOKEN = env("BIRDID_API_TOKEN", default="")

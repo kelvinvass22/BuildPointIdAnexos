@@ -29,6 +29,7 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REKOGNITION_REGION=us-east-1
       - AWS_REKOGNITION_COLLECTION_ID=buildpoint-operarios
+      - GEOAPIFY_API_KEY=${GEOAPIFY_API_KEY}
     depends_on:
       - db
 
