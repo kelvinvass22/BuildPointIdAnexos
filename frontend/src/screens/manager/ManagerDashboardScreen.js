@@ -1,23 +1,74 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING, SHADOW } from "../../theme/theme";
 import { currentObra, dailyAttendance } from "../../data/mockData";
+import { managerService } from "../../services/managerService";
 
 export default function ManagerDashboardScreen({ navigation }) {
+  const [obra, setObra] = useState(currentObra);
+  const [attendance, setAttendance] = useState(dailyAttendance);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // TODO: Ajustar rotas ou tipos com o backend
+      const [obraData, attendanceData] = await Promise.all([
+        managerService.getCurrentObra(),
+        managerService.getDailyAttendance()
+      ]);
+      
+      if (obraData) setObra(obraData);
+      if (attendanceData) setAttendance(attendanceData);
+    } catch (err) {
+      console.error("Erro ao carregar dados do painel:", err);
+      // TODO: Ajustar tratamento de erro e exibição de alertas
+      setError("Não foi possível conectar ao servidor. Exibindo dados locais.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: SPACING.md, color: COLORS.textMuted, fontSize: 14 }}>
+          Carregando informações do painel...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
+      {error && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={loadDashboardData} style={styles.retryBtn}>
+            <Text style={styles.retryBtnText}>Tentar Novamente</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.headerCard}>
         <View style={styles.headerIconWrap}>
           <MaterialCommunityIcons name="office-building-outline" size={18} color={COLORS.textOnPrimary} />
         </View>
         <View style={{ flex: 1, marginLeft: SPACING.sm }}>
           <Text style={styles.headerLabel}>OBRA ATUAL</Text>
-          <Text style={styles.headerTitle}>{currentObra.name}</Text>
+          <Text style={styles.headerTitle}>{obra.name}</Text>
           <View style={styles.headerAddrRow}>
             <Ionicons name="location-outline" size={12} color={COLORS.textOnPrimaryMuted} />
-            <Text style={styles.headerAddr}>{currentObra.address}</Text>
+            <Text style={styles.headerAddr}>{obra.address}</Text>
           </View>
         </View>
       </View>
@@ -55,7 +106,7 @@ export default function ManagerDashboardScreen({ navigation }) {
 
       <Text style={styles.sectionTitle}>Presença Diária</Text>
       <FlatList
-        data={dailyAttendance}
+        data={attendance}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: SPACING.md }}
         renderItem={({ item }) => (
@@ -80,6 +131,19 @@ export default function ManagerDashboardScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
+  errorBanner: {
+    backgroundColor: "#FADBD8",
+    padding: SPACING.sm,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  errorText: { color: "#78281F", fontSize: 12, fontWeight: "600", flex: 1, marginRight: SPACING.xs },
+  retryBtn: { backgroundColor: "#E74C3C", paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.xs },
+  retryBtnText: { color: COLORS.textOnPrimary, fontSize: 11, fontWeight: "700" },
   headerCard: {
     flexDirection: "row",
     backgroundColor: COLORS.primary,

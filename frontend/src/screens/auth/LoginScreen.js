@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform } from "react-native";
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING } from "../../theme/theme";
+import authService from "../../services/authService";
 
 const ROLE_ROUTES = {
   owner: "OwnerStack",
@@ -13,13 +14,38 @@ const ROLE_ROUTES = {
 export default function LoginScreen({ navigation, route }) {
   const role = route?.params?.role || "worker";
   const [cpf, setCpf] = useState("");
-  const [senha, setSenha] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: ROLE_ROUTES[role] }],
-    });
+  const handleLogin = async () => {
+    console.log("Botão apertado! CPF:", cpf);
+
+    // 1) Validação: CPF e password precisam estar preenchidos antes de
+    // qualquer chamada à API.
+    if (!cpf.trim() || !password.trim()) {
+      Alert.alert("Erro", "Preencha o CPF e a Senha para entrar.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // 2) A navegação só acontece se este await resolver (sucesso 200/201).
+      // Se a API retornar erro, authService.login lança uma exceção
+      // e o código pula direto para o catch, sem navegar.
+      await authService.login(cpf, password);
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: ROLE_ROUTES[role] }],
+      });
+    } catch (error) {
+      // 3) Mantém o usuário na tela de login e mostra o erro.
+      console.error(error);
+      Alert.alert("Erro de Login", "CPF ou senha inválidos, ou erro no servidor.");
+    } finally {
+      // 4) isLoading sempre é desligado, independente do resultado.
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,6 +72,7 @@ export default function LoginScreen({ navigation, route }) {
             value={cpf}
             onChangeText={setCpf}
             keyboardType="numeric"
+            editable={!isLoading}
           />
         </View>
 
@@ -55,14 +82,24 @@ export default function LoginScreen({ navigation, route }) {
             style={styles.input}
             placeholder="Digite sua senha"
             placeholderTextColor={COLORS.placeholder}
-            value={senha}
-            onChangeText={setSenha}
+            value={password}
+            onChangeText={setPassword}
             secureTextEntry
+            editable={!isLoading}
           />
         </View>
 
-        <TouchableOpacity style={styles.loginBtn} activeOpacity={0.85} onPress={handleLogin}>
-          <Text style={styles.loginBtnText}>Entrar</Text>
+        <TouchableOpacity
+          style={[styles.loginBtn, isLoading && styles.loginBtnDisabled]}
+          activeOpacity={0.85}
+          onPress={handleLogin}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color={COLORS.textOnPrimary} size="small" />
+          ) : (
+            <Text style={styles.loginBtnText}>Entrar</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -110,6 +147,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
     marginTop: SPACING.lg,
+  },
+  loginBtnDisabled: {
+    opacity: 0.7,
   },
   loginBtnText: { color: COLORS.textOnPrimary, fontWeight: "700", fontSize: 15 },
 });
