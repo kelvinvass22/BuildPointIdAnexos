@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=buildpoint_db
+      - POSTGRES_USER=buildpoint_user
+      - POSTGRES_PASSWORD=buildpoint_pass
+    ports:
+      - "5432:5432"
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgres://buildpoint_user:buildpoint_pass@db:5432/buildpoint_db
+      - DEBUG=True
+      - SECRET_KEY=Cpi65eNwCOpuyojhNb1qHks4ZN5jowWV-yEuN8cJ031SKdugiPkHwnmap418k_h9Zlw
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+      - FACE_SERVICE_PROVIDER=aws
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REKOGNITION_REGION=us-east-1
+      - AWS_REKOGNITION_COLLECTION_ID=buildpoint-operarios
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
