@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "BuildPoint ID",
+    "slug": "buildpoint-id",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0A5F9E"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A5F9E"
+      },
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O BuildPoint ID usa a câmera para o reconhecimento facial na marcação de ponto."
+        }
+      ],
+      "expo-font"
+    ]
+  }
+}
