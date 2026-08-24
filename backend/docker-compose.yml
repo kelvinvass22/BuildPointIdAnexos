@@ -14,11 +14,10 @@ services:
 
   web:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      - "10000:10000"
     environment:
       - DATABASE_URL=postgres://buildpoint_user:buildpoint_pass@db:5432/buildpoint_db
       - DEBUG=True
@@ -30,6 +29,8 @@ services:
       - AWS_REKOGNITION_REGION=us-east-1
       - AWS_REKOGNITION_COLLECTION_ID=buildpoint-operarios
       - GEOAPIFY_API_KEY=${GEOAPIFY_API_KEY}
+      - ADMIN_EMAIL=admin@buildpoint.com
+      - ADMIN_PASSWORD=admin2026
     depends_on:
       - db
 
