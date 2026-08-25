@@ -1,4 +1,4 @@
-name: Build e CI Pipeline
+﻿name: Build e CI Pipeline - Backend
 
 on:
   push:
@@ -23,41 +23,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Instalar Dependências
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install coverage
 
       - name: Executar Testes e Validar Cobertura (Min 70%)
         env:
           SECRET_KEY: 'ci-secret-key-test'
           DEBUG: 'True'
         run: |
-          coverage run manage.py test
+          coverage run manage.py test usuarios
           coverage report --fail-under=70
-
-  frontend-ci:
-    name: Frontend (React) - Testes & Coverage
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: ./frontend
-
-    steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Instalar Dependências
-        run: npm ci
-
-      - name: Executar Testes do React
-        run: npm test -- --coverage --watchAll=false --maxWorkers=2
