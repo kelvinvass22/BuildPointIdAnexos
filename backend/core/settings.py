@@ -2,8 +2,6 @@
 Configurações do BuildPoint ID — backend Django + DRF.
 
 Traduz os requisitos não funcionais da Etapa 3:
-- RNF04: Node.js + Firebase foi substituído por Django + PostgreSQL, mas o
-  princípio (sync em tempo real, hospedado em nuvem) se mantém.
 - RNF07 / LGPD: nenhuma imagem facial crua é aceita nos models (ver
   biometria/models.py) e dados sensíveis exigem HTTPS + variáveis de
   ambiente para segredos (nunca hardcoded).
@@ -171,23 +169,6 @@ SIMPLE_JWT = {
 
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", default="", cast=list)
 CORS_ALLOW_CREDENTIALS = True
-
-# --------------------------------------------------------------------------
-# Integrações externas (ver conversa sobre APIs — todas via variável de
-# ambiente, nunca hardcoded no código).
-# --------------------------------------------------------------------------
-# "falso" usa ServicoFacialFalso (dev/testes, sem credenciais reais);
-# troque para "aws" em produção assim que as chaves abaixo existirem.
-FACE_SERVICE_PROVIDER = env("FACE_SERVICE_PROVIDER", default="falso")
-AWS_REKOGNITION_REGION = env("AWS_REKOGNITION_REGION", default="us-east-1")
-AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
-AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
-AWS_REKOGNITION_COLLECTION_ID = env("AWS_REKOGNITION_COLLECTION_ID", default="buildpoint-operarios")
-
-# --- Geolocalização (por enqunato, iremos usar uma api gratuita) ---
-# GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
-
-GEOAPIFY_API_KEY = env("GEOAPIFY_API_KEY", default="")
 
 
 BIRDID_API_URL = env("BIRDID_API_URL", default="")
