@@ -19,9 +19,9 @@ class Obra(models.Model):
         "usuarios.Usuario", on_delete=models.PROTECT, related_name="obras",
         limit_choices_to={"papel": "DONO"},
     )
-    gerente = models.OneToOneField(
-        "usuarios.Usuario", on_delete=models.PROTECT, related_name="obra_gerenciada",
-        limit_choices_to={"papel": "GERENTE"}, null=True, blank=True,
+    gerentes = models.ManyToManyField(
+        "usuarios.Usuario", through="VinculoGerente", related_name="obras_gerenciadas",
+        blank=True,
     )
     nome = models.CharField(max_length=150)
     endereco = models.CharField(max_length=255)
@@ -74,3 +74,33 @@ class Obra(models.Model):
         "dentro do raio" vindo do app -- um cliente adulterado poderia mentir.
         """
         return self.calcular_distancia(latitude, longitude) <= self.raio_metros
+
+
+class VinculoGerente(models.Model):
+    """
+    Tabela de associação Obra<->Gerente com o atributo `especialidade`
+    (ex.: elétrica, civil, segurança do trabalho) -- feedback do professor:
+    "Obra tem vários gerentes como gerente de elétrica...". Substitui o
+    antigo `Obra.gerente` (OneToOne) por um M:N: uma obra pode ter vários
+    gerentes (um por especialidade) e um gerente pode atender mais de uma obra.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name="vinculos_gerente")
+    gerente = models.ForeignKey(
+        "usuarios.Usuario", on_delete=models.CASCADE, related_name="vinculos_obra",
+        limit_choices_to={"papel": "GERENTE"},
+    )
+    especialidade = models.CharField(max_length=100)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "vinculos_gerente"
+        verbose_name = "Vínculo de Gerente"
+        verbose_name_plural = "Vínculos de Gerente"
+        constraints = [
+            models.UniqueConstraint(fields=["obra", "gerente", "especialidade"], name="vinculo_gerente_unico"),
+        ]
+
+    def __str__(self):
+        return f"{self.gerente} — {self.especialidade} ({self.obra.nome})"

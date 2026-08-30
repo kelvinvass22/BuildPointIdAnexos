@@ -1,17 +1,81 @@
 from rest_framework import serializers
 
-from .models import Obra
+from .models import Obra, VinculoGerente
+
+
+class VinculoGerenteSerializer(serializers.ModelSerializer):
+    gerente_nome = serializers.CharField(source="gerente.get_full_name", read_only=True)
+
+    class Meta:
+        model = VinculoGerente
+        fields = ["id", "gerente", "gerente_nome", "especialidade", "criado_em"]
+        read_only_fields = ["id", "criado_em"]
+
+
+class VincularGerenteSerializer(serializers.Serializer):
+    """
+    RF02/UC02 — vincula um gerente já existente (`gerente_id`) OU cadastra
+    um novo (`nome_completo`/`cpf`/`email`) na mesma chamada, sempre com
+    uma `especialidade` (ex.: elétrica, civil, segurança do trabalho).
+    """
+
+    especialidade = serializers.CharField(max_length=100)
+
+    gerente_id = serializers.UUIDField(required=False)
+
+    nome_completo = serializers.CharField(max_length=150, required=False)
+    cpf = serializers.CharField(max_length=14, required=False)
+    email = serializers.EmailField(required=False)
+    telefone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    senha_inicial = serializers.CharField(write_only=True, required=False, min_length=8)
+
+    def validate(self, attrs):
+        if not attrs.get("gerente_id") and not (attrs.get("nome_completo") and attrs.get("cpf")):
+            raise serializers.ValidationError(
+                "Informe `gerente_id` de um gerente já cadastrado, ou `nome_completo`+`cpf`+`email` pra criar um novo."
+            )
+        return attrs
+
+    def create(self, validated_data):
+        from usuarios.models import Usuario
+
+        obra = self.context["obra"]
+
+        if validated_data.get("gerente_id"):
+            try:
+                gerente = Usuario.objects.get(pk=validated_data["gerente_id"], papel="GERENTE")
+            except Usuario.DoesNotExist:
+                raise serializers.ValidationError({"gerente_id": "Gerente não encontrado."})
+        else:
+            from usuarios.models import PerfilGerente
+
+            cpf = validated_data["cpf"]
+            if Usuario.objects.filter(cpf=cpf).exists():
+                raise serializers.ValidationError({"cpf": "Já existe um usuário com este CPF."})
+
+            partes_nome = validated_data["nome_completo"].split(" ", 1)
+            gerente = Usuario.objects.create_user(
+                username=cpf, cpf=cpf, email=validated_data.get("email", ""),
+                first_name=partes_nome[0], last_name=partes_nome[1] if len(partes_nome) > 1 else "",
+                password=validated_data.get("senha_inicial") or __import__("secrets").token_urlsafe(12),
+                papel="GERENTE",
+            )
+            PerfilGerente.objects.create(usuario=gerente, telefone=validated_data.get("telefone", ""))
+
+        return VinculoGerente.objects.create(
+            obra=obra, gerente=gerente, especialidade=validated_data["especialidade"],
+        )
 
 
 class ObraSerializer(serializers.ModelSerializer):
-    gerente_nome = serializers.CharField(source="gerente.get_full_name", read_only=True, default=None)
+    vinculos_gerente = VinculoGerenteSerializer(many=True, read_only=True)
     total_operarios = serializers.IntegerField(source="operarios.count", read_only=True)
 
     class Meta:
         model = Obra
         fields = [
-            "id", "nome", "endereco", "latitude_centro", "longitude_centro",
-            "raio_metros", "status", "gerente", "gerente_nome", "total_operarios", "criada_em",
+            "id", "nome", "endereco", "numero_art", "latitude_centro", "longitude_centro",
+            "raio_metros", "status", "vinculos_gerente", "total_operarios", "criada_em",
         ]
         read_only_fields = ["id", "criada_em"]
 

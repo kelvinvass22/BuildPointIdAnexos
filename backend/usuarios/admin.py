@@ -28,8 +28,7 @@ class ObraInline(admin.TabularInline):
     model = Obra
     fk_name = "dono"
     extra = 1
-    fields = ("nome", "endereco", "numero_art", "gerente", "status")
-    autocomplete_fields = ["gerente"]
+    fields = ("nome", "endereco", "numero_art", "status")
 
 
 @admin.register(Usuario)
@@ -67,6 +66,6 @@ class PerfilGerenteAdmin(admin.ModelAdmin):
 
 @admin.register(PerfilOperario)
 class PerfilOperarioAdmin(admin.ModelAdmin):
-    list_display = ("usuario", "cargo", "obra", "biometria_cadastrada_em")
+    list_display = ("usuario", "cargo", "obra", "data_admissao", "biometria_cadastrada_em")
     list_filter = ("obra",)
     autocomplete_fields = ["obra"]

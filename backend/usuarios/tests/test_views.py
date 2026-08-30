@@ -8,6 +8,7 @@ from rest_framework.test import APITestCase
 from usuarios.models import Papel, PerfilDono, PerfilGerente, PerfilOperario, Usuario
 
 Obra = apps.get_model("obras", "Obra")
+VinculoGerente = apps.get_model("obras", "VinculoGerente")
 
 
 @override_settings(SECURE_SSL_REDIRECT=False)
@@ -137,10 +138,10 @@ class CadastrarOperarioViewTestCase(APITestCase):
         self.obra = Obra.objects.create(
             nome="Obra Residencial 01",
             dono=self.dono,
-            gerente=self.gerente,
             latitude_centro=-3.7319,
             longitude_centro=-38.5267
         )
+        VinculoGerente.objects.create(obra=self.obra, gerente=self.gerente, especialidade="Geral")
 
         self.payload = {
             "nome_completo": "João Operário",
@@ -187,10 +188,10 @@ class ListarOperariosViewTestCase(APITestCase):
         self.obra = Obra.objects.create(
             nome="Obra Comercial",
             dono=self.dono,
-            gerente=self.gerente,
             latitude_centro=-3.7319,
             longitude_centro=-38.5267
         )
+        VinculoGerente.objects.create(obra=self.obra, gerente=self.gerente, especialidade="Geral")
 
         self.operario_user = Usuario.objects.create_user(
             username="55555555555", cpf="55555555555", password="123", papel=Papel.OPERARIO

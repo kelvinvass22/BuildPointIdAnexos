@@ -63,5 +63,5 @@ class ListarOperariosView(generics.ListAPIView):
         usuario = self.request.user
         qs = PerfilOperario.objects.select_related("usuario", "obra")
         if usuario.papel == "GERENTE":
-            return qs.filter(obra__gerente=usuario)
+            return qs.filter(obra__gerentes=usuario)
         return qs.filter(obra__dono=usuario)
