@@ -5,7 +5,7 @@ from .models import LogAuditoria, MarcacaoPonto, SessaoOffline
 
 @admin.register(MarcacaoPonto)
 class MarcacaoPontoAdmin(admin.ModelAdmin):
-    list_display = ("nsr", "operario", "obra", "tipo", "data_hora", "confianca_face", "sincronizado")
+    list_display = ("nsr", "operario", "obra", "tipo", "origem", "data_hora", "confianca_face", "dispositivo_id", "sincronizado")
     list_filter = ("tipo", "origem", "sincronizado", "obra")
     search_fields = ("nsr", "operario__usuario__cpf", "operario__usuario__first_name")
     readonly_fields = ("hash_integridade",)

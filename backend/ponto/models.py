@@ -16,7 +16,8 @@ class TipoMarcacao(models.TextChoices):
 
 class OrigemMarcacao(models.TextChoices):
     APP_OPERARIO = "APP_OPERARIO", "App do operário"
-    CONTINGENCIA_GERENTE = "CONTINGENCIA_GERENTE", "Contingência (gerente)"
+    CONTINGENCIA_GERENTE = "CONTINGENCIA_GERENTE", "Contingência (gerente, digital)"
+    CONTINGENCIA_PAPEL = "CONTINGENCIA_PAPEL", "Contingência em papel (aprovada depois)"
     SYNC_OFFLINE = "SYNC_OFFLINE", "Sincronização offline"
 
 
@@ -61,6 +62,13 @@ class MarcacaoPonto(models.Model):
     origem = models.CharField(max_length=25, choices=OrigemMarcacao.choices, default=OrigemMarcacao.APP_OPERARIO)
     sincronizado = models.BooleanField(default=True)
     hash_integridade = models.CharField(max_length=64, editable=False)
+
+    # Metadados de dispositivo (pedido do professor: "saber qual o
+    # dispositivo... login, horário, data" em toda validação). O login/CPF
+    # de quem registrou já é rastreável via `registrado_por`, abaixo.
+    dispositivo_id = models.CharField("ID do dispositivo", max_length=150, blank=True)
+    sistema_operacional = models.CharField("sistema operacional", max_length=100, blank=True)
+
     sessao_offline = models.ForeignKey(
         SessaoOffline, on_delete=models.SET_NULL, null=True, blank=True, related_name="marcacoes"
     )
