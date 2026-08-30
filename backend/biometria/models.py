@@ -14,7 +14,10 @@ class BiometriaFacial(models.Model):
         "usuarios.PerfilOperario", on_delete=models.CASCADE, related_name="biometria"
     )
     vetor_criptografado = models.TextField(help_text="Vetor facial cifrado -- nunca a imagem crua (RS02/LGPD).")
-    algoritmo = models.CharField(max_length=50, default="aws-rekognition")
+    algoritmo = models.CharField(
+        max_length=50, default="sdk-dispositivo",
+        help_text="Identifica o SDK que extraiu o vetor no aparelho (ex.: ML Kit, MediaPipe) -- não é mais processado no backend.",
+    )
     qualidade_amostra = models.FloatField()
     capturado_em = models.DateTimeField(auto_now_add=True)
 

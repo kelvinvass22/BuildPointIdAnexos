@@ -9,8 +9,8 @@ from .serializers import BiometriaFacialSerializer, CadastrarBiometriaSerializer
 class CadastrarBiometriaView(generics.CreateAPIView):
     """
     UC05 — Cadastrar Operário com Biometria Facial (RF05).
-    POST /api/biometria/cadastrar/  (multipart/form-data: operario_id, frame)
-    Só o Gerente captura a biometria em campo (ver SQ02 da Etapa 3).
+    POST /api/biometria/cadastrar/  (JSON: operario_id, vetor_facial, qualidade_amostra)
+    Vetor extraído no dispositivo do Gerente (SDK on-device) -- nunca uma imagem.
     """
 
     serializer_class = CadastrarBiometriaSerializer

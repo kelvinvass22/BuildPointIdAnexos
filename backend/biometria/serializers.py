@@ -12,13 +12,19 @@ class BiometriaFacialSerializer(serializers.ModelSerializer):
 
 class CadastrarBiometriaSerializer(serializers.Serializer):
     """
-    UC05 (parte de biometria) — recebe o frame capturado no app, chama o
-    serviço de reconhecimento facial pra extrair o vetor, e só então
-    persiste (nunca a imagem em si).
+    UC05 (parte de biometria) -- recebe o VETOR já extraído no dispositivo
+    do Gerente (SDK on-device), nunca uma imagem/frame, e persiste
+    criptografado (RS02/LGPD).
     """
 
     operario_id = serializers.UUIDField()
-    frame = serializers.ImageField(write_only=True)
+    vetor_facial = serializers.ListField(
+        child=serializers.FloatField(), min_length=8,
+        help_text="Vetor extraído no dispositivo (ex.: Google ML Kit, MediaPipe) -- não a imagem.",
+    )
+    qualidade_amostra = serializers.FloatField(
+        min_value=0, max_value=1, help_text="Qualidade informada pelo próprio SDK do dispositivo.",
+    )
 
     def validate(self, attrs):
         from usuarios.models import PerfilOperario
@@ -33,14 +39,15 @@ class CadastrarBiometriaSerializer(serializers.Serializer):
         from .services import get_servico_facial
 
         operario = validated_data["operario"]
-        frame_bytes = validated_data["frame"].read()
+        qualidade_amostra = validated_data["qualidade_amostra"]
 
-        resultado = get_servico_facial().extrair_vetor(frame_bytes)
-        if resultado.qualidade_amostra < BiometriaFacial.LIMIAR_QUALIDADE_MINIMA:
+        if qualidade_amostra < BiometriaFacial.LIMIAR_QUALIDADE_MINIMA:
             # Alternativa do SQ02: qualidade insuficiente (luz/EPI) -> pedir nova captura.
             raise serializers.ValidationError(
                 "Qualidade da amostra insuficiente. Ajuste a iluminação/EPI e capture novamente."
             )
+
+        resultado = get_servico_facial().registrar_vetor(validated_data["vetor_facial"], qualidade_amostra)
 
         biometria, _ = BiometriaFacial.objects.update_or_create(
             operario=operario,
