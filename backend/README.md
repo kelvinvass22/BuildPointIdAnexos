@@ -136,3 +136,18 @@ Não consegui acessar os repositórios `Plataforma-Back-CREDIFLOW` e
 então este projeto segue convenções padrão de mercado Django/DRF, não o
 padrão exato de vocês. Se colarem um `models.py` ou `settings.py` de
 referência, dá pra ajustar a estrutura pra bater certinho.
+
+---
+
+## Atualização — feedback do professor (esta leva)
+
+- **Reconhecimento facial saiu do backend**: o vetor é extraído no dispositivo (SDK on-device gratuito, ex. Google ML Kit / MediaPipe); o backend só compara vetor-a-vetor (`biometria/services.py`, `ServicoSimilaridadeCosseno`). `AmazonRekognitionService` foi comentado, não apagado.
+- **Corrigido bug real** em `ponto/services.py`: a chamada ao Geoapify usava `obra.latitude`/`obra.longitude`, que não existem (`latitude_centro`/`longitude_centro`) — ia quebrar toda batida em produção. Trocado pelo Haversine local que já existia em `Obra`, sem custo de API externa.
+- **Recibo em PDF** (RF16, novo): `ponto/recibo.py`, endpoint `GET /api/marcacoes/{id}/recibo/`.
+- **Verificar integridade** (RF15, novo): `GET /api/marcacoes/{id}/verificar-integridade/`, aberto a Dono, Gerente e o próprio Operário — mostra dispositivo, login (via `registrado_por`), horário e data.
+- **Contingência (RF06) e contingência em papel (RF17)**: não existiam ainda — adicionados em `POST /api/marcacoes/contingencia/` e `POST /api/marcacoes/contingencia-papel/`.
+- **Obra com vários gerentes por especialidade** (`obras.VinculoGerente`, M:N) em vez de `Obra.gerente` único — ⚠️ **ver `MIGRACOES_PENDENTES.md` antes de migrar**, tem um passo manual se já houver dado real.
+- `usuarios.PerfilOperario` ganhou `endereco` e `data_admissao`.
+- `BIRDID_API_URL`/`BIRDID_API_TOKEN` mantidos como estavam — o recibo hoje usa o `hash_integridade` que vocês já geram; a assinatura PAdES real via BirdID continua sendo o próximo passo, comentado em `ponto/recibo.py`.
+
+**Não rodei `makemigrations`/testes aqui** (mesma limitação de rede já registrada no README original) — ver `MIGRACOES_PENDENTES.md`.
