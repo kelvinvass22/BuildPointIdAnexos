@@ -106,6 +106,8 @@ class PerfilOperario(models.Model):
         Usuario, on_delete=models.CASCADE, related_name="perfil_operario", primary_key=True
     )
     cargo = models.CharField(max_length=100, blank=True)
+    endereco = models.CharField(max_length=255, blank=True)
+    data_admissao = models.DateField(null=True, blank=True)
     obra = models.ForeignKey(
         "obras.Obra", on_delete=models.SET_NULL, null=True, blank=True, related_name="operarios"
     )

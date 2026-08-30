@@ -50,7 +50,10 @@ class PerfilOperarioSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PerfilOperario
-        fields = ["usuario", "cargo", "obra", "obra_nome", "biometria_cadastrada_em", "possui_biometria_ativa"]
+        fields = [
+            "usuario", "cargo", "endereco", "data_admissao", "obra", "obra_nome",
+            "biometria_cadastrada_em", "possui_biometria_ativa",
+        ]
 
 
 class CadastrarOperarioSerializer(serializers.Serializer):
@@ -64,6 +67,8 @@ class CadastrarOperarioSerializer(serializers.Serializer):
     cpf = serializers.CharField(max_length=14)
     email = serializers.EmailField(required=False, allow_blank=True)
     cargo = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    endereco = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    data_admissao = serializers.DateField(required=False, allow_null=True)
     senha_inicial = serializers.CharField(write_only=True, min_length=8)
     obra_id = serializers.UUIDField()
 
@@ -91,7 +96,11 @@ class CadastrarOperarioSerializer(serializers.Serializer):
             papel="OPERARIO",
         )
         return PerfilOperario.objects.create(
-            usuario=usuario, cargo=validated_data.get("cargo", ""), obra=obra
+            usuario=usuario,
+            cargo=validated_data.get("cargo", ""),
+            endereco=validated_data.get("endereco", ""),
+            data_admissao=validated_data.get("data_admissao"),
+            obra=obra,
         )
 
 
