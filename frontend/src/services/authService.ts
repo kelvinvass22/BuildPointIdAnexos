@@ -1,4 +1,4 @@
-import api from './api';
+import api, { STORAGE_KEYS } from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export class AuthError extends Error {
@@ -10,17 +10,20 @@ export class AuthError extends Error {
   }
 }
 
+// PapelEnum do backend -> Stack de navegação do app (ver App.js)
+export const ROLE_TO_STACK: Record<string, string> = {
+  DONO: 'OwnerStack',
+  GERENTE: 'ManagerStack',
+  OPERARIO: 'WorkerStack',
+};
+
 export const authService = {
   /**
    * Realiza login do usuário com CPF e Senha.
    * Envia o payload no formato: { cpf: string, password: string }
    *
-   * IMPORTANTE: por padrão o Axios já rejeita a Promise para qualquer
-   * status fora do range 2xx (400, 401, 500, etc.), então o `catch`
-   * abaixo é suficiente. Se o seu `api.js` (instância do Axios) tiver
-   * um `validateStatus` customizado ou um interceptor de resposta que
-   * "engole" o erro, isso precisa ser corrigido lá — senão o login
-   * nunca vai lançar exceção mesmo quando a API retornar 401.
+   * Resposta esperada do backend (200):
+   * { refresh, access, usuario_id, nome, papel, tela_inicial }
    *
    * @param {string} cpf - CPF do usuário
    * @param {string} password - Senha do usuário
@@ -42,53 +45,65 @@ export const authService = {
 
       console.error('Erro na requisição de login:', error?.response?.data || error.message);
 
-      // Repassa um erro padronizado para a tela conseguir exibir
-      // a mensagem correta no Alert.
       throw new AuthError(
         backendMessage || 'CPF ou senha inválidos, ou erro no servidor.',
         error?.response?.status
       );
     }
 
-    // Confirmação explícita de sucesso (200/201). Qualquer outro status
-    // já teria caído no catch acima, mas deixamos essa checagem
-    // como segunda camada de segurança.
     if (!response || response.status < 200 || response.status >= 300 || !response.data) {
       throw new AuthError('Resposta inesperada do servidor.', response?.status);
     }
 
-    const { token, access } = response.data;
-    const authToken = token || access;
+    const { access, refresh, usuario_id, nome, papel, tela_inicial } = response.data;
 
-    if (!authToken) {
-      // A API respondeu 200/201 mas sem token = não é um login válido.
-      throw new AuthError('Login não retornou token de autenticação.', response.status);
+    if (!access || !refresh) {
+      throw new AuthError('Login não retornou tokens de autenticação.', response.status);
     }
 
-    await AsyncStorage.setItem('@BuildPoint:token', authToken);
-    api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.ACCESS_TOKEN, access],
+      [STORAGE_KEYS.REFRESH_TOKEN, refresh],
+      [STORAGE_KEYS.PAPEL, papel || ''],
+      [STORAGE_KEYS.USUARIO_ID, usuario_id || ''],
+      [STORAGE_KEYS.NOME, nome || ''],
+    ]);
 
-    if (response.data.role) {
-      await AsyncStorage.setItem('@BuildPoint:role', response.data.role);
-    }
-
-    return response.data;
+    return { access, refresh, usuario_id, nome, papel, tela_inicial };
   },
 
   /**
    * Remove dados de autenticação locais ao deslogar.
    */
   async logout(): Promise<void> {
-    await AsyncStorage.removeItem('@BuildPoint:token');
-    await AsyncStorage.removeItem('@BuildPoint:role');
-    delete api.defaults.headers.common['Authorization'];
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.ACCESS_TOKEN,
+      STORAGE_KEYS.REFRESH_TOKEN,
+      STORAGE_KEYS.PAPEL,
+      STORAGE_KEYS.USUARIO_ID,
+      STORAGE_KEYS.NOME,
+    ]);
   },
 
   /**
-   * Recupera o token salvo localmente.
+   * Recupera o token de acesso salvo localmente.
    */
   async getToken(): Promise<string | null> {
-    return await AsyncStorage.getItem('@BuildPoint:token');
+    return await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+  },
+
+  /**
+   * Recupera o papel (DONO | GERENTE | OPERARIO) salvo no último login.
+   */
+  async getStoredPapel(): Promise<string | null> {
+    return await AsyncStorage.getItem(STORAGE_KEYS.PAPEL);
+  },
+
+  /**
+   * Recupera o id do usuário logado, salvo no último login.
+   */
+  async getStoredUsuarioId(): Promise<string | null> {
+    return await AsyncStorage.getItem(STORAGE_KEYS.USUARIO_ID);
   },
 };
 

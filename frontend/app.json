@@ -19,14 +19,27 @@
         "backgroundColor": "#0A5F9E"
       },
       "permissions": [
-        "CAMERA"
-      ]
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.BuildPointID"
     },
     "plugins": [
       [
         "expo-camera",
         {
           "cameraPermission": "O BuildPoint ID usa a câmera para o reconhecimento facial na marcação de ponto."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "O BuildPoint ID usa sua localização para confirmar que a marcação de ponto está dentro do raio da obra."
         }
       ],
       "expo-font"

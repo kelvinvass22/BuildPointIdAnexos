@@ -1,9 +1,9 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING, SHADOW } from "../../theme/theme";
-import { historyMonth, historyEntries } from "../../data/mockData";
+import { workerService } from "../../services/workerService";
 
 const STATUS_ICON = {
   ok: { name: "checkmark-circle", color: COLORS.success },
@@ -12,12 +12,18 @@ const STATUS_ICON = {
 };
 
 function EntryRow({ entry }) {
-  const icon = STATUS_ICON[entry.status];
+  const icon = STATUS_ICON[entry.status] || STATUS_ICON.ok;
   return (
     <View style={styles.entryCard}>
       <View style={styles.entryHeader}>
         <Text style={styles.entryDate}>{entry.dateLabel}</Text>
-        <Ionicons name={icon.name} size={18} color={icon.color} />
+        <TouchableOpacity
+          style={{ flexDirection: "row", alignItems: "center" }}
+          onPress={() => Linking.openURL(workerService.reciboUrl(entry.id))}
+        >
+          <Ionicons name="document-text-outline" size={16} color={COLORS.primary} style={{ marginRight: 6 }} />
+          <Ionicons name={icon.name} size={18} color={icon.color} />
+        </TouchableOpacity>
       </View>
       <View style={styles.entryRow}>
         <View style={[styles.dot, { backgroundColor: COLORS.success }]} />
@@ -43,6 +49,30 @@ function EntryRow({ entry }) {
 }
 
 export default function WorkerHistoryScreen({ navigation }) {
+  const [historyMonth, setHistoryMonth] = useState(null);
+  const [historyEntries, setHistoryEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadHistory = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+    const data = await workerService.getHistory();
+    setHistoryMonth(data?.month || null);
+    setHistoryEntries(data?.entries || []);
+  } catch (err) {
+    console.error("Erro ao carregar histórico:", err);
+    setError("Não foi possível conectar ao servidor.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
@@ -53,26 +83,51 @@ export default function WorkerHistoryScreen({ navigation }) {
         <View style={{ width: 22 }} />
       </View>
 
-      <View style={styles.summaryCard}>
-        <Text style={styles.monthLabel}>{historyMonth.label}</Text>
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryLabel}>Dias trabalhados</Text>
-            <Text style={styles.summaryValue}>{historyMonth.daysWorked}</Text>
-          </View>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryLabel}>Horas extras</Text>
-            <Text style={styles.summaryValue}>{historyMonth.extraHours}</Text>
-          </View>
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={{ marginTop: SPACING.md, color: COLORS.textMuted }}>Carregando histórico...</Text>
         </View>
-      </View>
+      ) : error ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: SPACING.lg }}>
+          <Text style={{ color: COLORS.textMuted, fontSize: 14, textAlign: "center", marginBottom: SPACING.md }}>
+            {error}
+          </Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={loadHistory}>
+            <Text style={styles.retryBtnText}>Tentar Novamente</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          {historyMonth && (
+            <View style={styles.summaryCard}>
+              <Text style={styles.monthLabel}>{historyMonth.label}</Text>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryLabel}>Dias trabalhados</Text>
+                  <Text style={styles.summaryValue}>{historyMonth.daysWorked}</Text>
+                </View>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryLabel}>Horas extras</Text>
+                  <Text style={styles.summaryValue}>{historyMonth.extraHours}</Text>
+                </View>
+              </View>
+            </View>
+          )}
 
-      <FlatList
-        data={historyEntries}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: SPACING.lg }}
-        renderItem={({ item }) => <EntryRow entry={item} />}
-      />
+          <FlatList
+            data={historyEntries}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: SPACING.lg }}
+            renderItem={({ item }) => <EntryRow entry={item} />}
+            ListEmptyComponent={
+              <Text style={{ textAlign: "center", color: COLORS.textMuted, marginTop: SPACING.lg }}>
+                Nenhum registro encontrado.
+              </Text>
+            }
+          />
+        </>
+      )}
 
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.bottomBarItem} onPress={() => navigation.navigate("WorkerHome")}>
@@ -126,4 +181,6 @@ const styles = StyleSheet.create({
   bottomBar: { flexDirection: "row", backgroundColor: COLORS.primary, paddingVertical: SPACING.sm },
   bottomBarItem: { flex: 1, alignItems: "center" },
   bottomBarLabel: { color: COLORS.textOnPrimary, fontSize: 11, marginTop: 2, fontWeight: "600" },
+  retryBtn: { backgroundColor: COLORS.primary, paddingHorizontal: SPACING.lg, paddingVertical: 10, borderRadius: RADIUS.sm },
+  retryBtnText: { color: COLORS.textOnPrimary, fontSize: 13, fontWeight: "700" },
 });

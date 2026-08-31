@@ -1,11 +1,46 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { COLORS, RADIUS, SPACING, SHADOW } from "../../theme/theme";
-import { ownerProfile, myWorks } from "../../data/mockData";
+import { ownerService } from "../../services/ownerService";
+import authService from "../../services/authService";
 
 export default function OwnerDashboardScreen({ navigation }) {
+  const [nome, setNome] = useState("Dono");
+  const [obras, setObras] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const storedNome = await AsyncStorage.getItem("@BuildPoint:nome");
+      if (storedNome) setNome(storedNome);
+
+      const { results } = await ownerService.listObras();
+      setObras(results);
+    } catch (err) {
+      console.error("Erro ao carregar obras:", err);
+      setError("Não foi possível conectar ao servidor.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", loadData);
+    return unsubscribe;
+  }, [navigation, loadData]);
+
+  const activeWorks = obras.filter((o) => o.status === "ATIVA").length;
+  const managers = new Set(
+    obras.flatMap((o) => (o.vinculos_gerente || []).map((v) => v.gerente))
+  ).size;
+  const workersTotal = obras.reduce((sum, o) => sum + (o.total_operarios || 0), 0);
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
@@ -14,14 +49,17 @@ export default function OwnerDashboardScreen({ navigation }) {
         </View>
         <View style={{ flex: 1, marginLeft: SPACING.sm }}>
           <Text style={styles.welcomeText}>Bem-vindo,</Text>
-          <Text style={styles.userName}>{ownerProfile.name}</Text>
+          <Text style={styles.userName}>{nome}</Text>
         </View>
         <TouchableOpacity style={styles.headerIcon}>
           <Ionicons name="notifications-outline" size={18} color={COLORS.textOnPrimary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.headerIcon, { marginLeft: SPACING.sm }]}
-          onPress={() => navigation.getParent()?.navigate("Auth", { screen: "ProfileSelect" })}
+          onPress={async () => {
+            await authService.logout();
+            navigation.getParent()?.navigate("Auth", { screen: "ProfileSelect" });
+          }}
         >
           <Ionicons name="log-out-outline" size={18} color={COLORS.textOnPrimary} />
         </TouchableOpacity>
@@ -30,45 +68,70 @@ export default function OwnerDashboardScreen({ navigation }) {
       <View style={styles.body}>
         <Text style={styles.sectionTitle}>Visão Geral</Text>
 
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={loadData} style={styles.retryBtn}>
+              <Text style={styles.retryBtnText}>Tentar Novamente</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.statCardWide}>
           <Text style={styles.statLabel}>Obras ativas</Text>
-          <Text style={styles.statValueBig}>{ownerProfile.activeWorks}</Text>
+          <Text style={styles.statValueBig}>{activeWorks}</Text>
         </View>
 
         <View style={styles.statRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Gerentes</Text>
-            <Text style={styles.statValue}>{ownerProfile.managers}</Text>
+            <Text style={styles.statValue}>{managers}</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Operários Hoje</Text>
-            <Text style={styles.statValue}>{ownerProfile.workersToday}</Text>
+            <Text style={styles.statLabel}>Operários</Text>
+            <Text style={styles.statValue}>{workersTotal}</Text>
           </View>
         </View>
 
         <Text style={styles.sectionTitle}>Minhas Obras</Text>
-        <FlatList
-          data={myWorks}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 90 }}
-          renderItem={({ item }) => (
-            <View style={styles.workCard}>
-              <View style={styles.workIcon}>
-                <MaterialCommunityIcons name="office-building-outline" size={18} color={COLORS.primary} />
-              </View>
-              <View style={{ flex: 1, marginLeft: SPACING.sm }}>
-                <Text style={styles.workName} numberOfLines={2}>{item.name}</Text>
-                <View style={styles.workLocRow}>
-                  <Ionicons name="location-outline" size={12} color={COLORS.textMuted} />
-                  <Text style={styles.workLoc}>{item.location}</Text>
-                </View>
-                <Text style={styles.workManager}>
-                  Gerente: <Text style={{ fontWeight: "700" }}>{item.manager}</Text>
-                </Text>
-              </View>
-            </View>
-          )}
-        />
+        {loading ? (
+          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: SPACING.lg }} />
+        ) : (
+          <FlatList
+            data={obras}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingBottom: 90 }}
+            ListEmptyComponent={
+              <Text style={{ textAlign: "center", color: COLORS.textMuted, marginTop: SPACING.lg }}>
+                Nenhuma obra cadastrada ainda.
+              </Text>
+            }
+            renderItem={({ item }) => {
+              const gerentesNomes = (item.vinculos_gerente || []).map((v) => v.gerente_nome).join(", ");
+              return (
+                <TouchableOpacity
+                  style={styles.workCard}
+                  onPress={() => navigation.navigate("ObraDetail", { obraId: item.id })}
+                >
+                  <View style={styles.workIcon}>
+                    <MaterialCommunityIcons name="office-building-outline" size={18} color={COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+                    <Text style={styles.workName} numberOfLines={2}>{item.nome}</Text>
+                    <View style={styles.workLocRow}>
+                      <Ionicons name="location-outline" size={12} color={COLORS.textMuted} />
+                      <Text style={styles.workLoc}>{item.endereco}</Text>
+                    </View>
+                    <Text style={styles.workManager}>
+                      Gerente: <Text style={{ fontWeight: "700" }}>{gerentesNomes || "Não vinculado"}</Text>
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              );
+            }}
+          />
+        )}
       </View>
 
       <TouchableOpacity
@@ -111,6 +174,18 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1, paddingHorizontal: SPACING.md, paddingTop: SPACING.md },
   sectionTitle: { fontSize: 16, fontWeight: "700", color: COLORS.textDark, marginBottom: SPACING.sm },
+  errorBanner: {
+    backgroundColor: "#FADBD8",
+    padding: SPACING.sm,
+    marginBottom: SPACING.md,
+    borderRadius: RADIUS.sm,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  errorText: { color: "#78281F", fontSize: 12, fontWeight: "600", flex: 1, marginRight: SPACING.xs },
+  retryBtn: { backgroundColor: "#E74C3C", paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.xs },
+  retryBtnText: { color: COLORS.textOnPrimary, fontSize: 11, fontWeight: "700" },
   statCardWide: {
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.md,

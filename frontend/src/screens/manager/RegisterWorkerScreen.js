@@ -5,48 +5,78 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING } from "../../theme/theme";
 import { managerService } from "../../services/managerService";
 
-export default function RegisterWorkerScreen({ navigation }) {
-  const [nome, setNome] = useState("");
+const CARGOS = ["Pedreiro", "Mestre de Obras", "Servente", "Eletricista", "Encanador"];
+
+export default function RegisterWorkerScreen({ navigation, route }) {
+  const { obraId } = route?.params || {};
+
+  const [nomeCompleto, setNomeCompleto] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [email, setEmail] = useState("");
   const [endereco, setEndereco] = useState("");
   const [cargo, setCargo] = useState("Pedreiro");
-  const [admissao, setAdmissao] = useState("");
-  const [faceId, setFaceId] = useState(null);
+  const [dataAdmissao, setDataAdmissao] = useState(""); // dd/mm/aaaa (convertido antes de enviar)
+  const [senhaInicial, setSenhaInicial] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Simula o escaneamento facial de cadastro
-  const handleFaceScan = () => {
-    // TODO: Integrar com câmera ou fluxo nativo de detecção facial do backend
-    const simulatedFaceId = `face_${Date.now()}`;
-    setFaceId(simulatedFaceId);
-    Alert.alert("ID Facial Capturado", "Dados biométricos do rosto escaneados com sucesso.");
+  const toISODate = (value) => {
+    // Converte "dd/mm/aaaa" -> "aaaa-mm-dd" (formato exigido pelo backend).
+    const parts = value.split("/");
+    if (parts.length !== 3) return null;
+    const [dd, mm, yyyy] = parts;
+    if (!dd || !mm || !yyyy) return null;
+    return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
   };
 
   const handleSave = async () => {
-    if (!nome.trim() || !endereco.trim()) {
-      Alert.alert("Erro", "Por favor, preencha o Nome e o Endereço.");
+    if (!nomeCompleto.trim() || !cpf.trim() || !senhaInicial.trim()) {
+      Alert.alert("Erro", "Por favor, preencha ao menos Nome, CPF e Senha inicial.");
+      return;
+    }
+    if (!obraId) {
+      Alert.alert("Erro", "Não foi possível identificar a obra atual. Volte e tente novamente.");
+      return;
+    }
+
+    const dataAdmissaoISO = dataAdmissao.trim() ? toISODate(dataAdmissao.trim()) : null;
+    if (dataAdmissao.trim() && !dataAdmissaoISO) {
+      Alert.alert("Erro", "Data de admissão inválida. Use o formato dd/mm/aaaa.");
       return;
     }
 
     try {
       setSaving(true);
-      // TODO: Ajustar rota ou tipo com o backend se necessário, enviando dados e arquivos necessários
-      await managerService.registerWorker({
-        nome,
-        endereco,
-        cargo,
-        admissao,
-        faceId,
+      const operario = await managerService.cadastrarOperario({
+        nomeCompleto: nomeCompleto.trim(),
+        cpf: cpf.trim(),
+        email: email.trim() || undefined,
+        cargo: cargo || undefined,
+        endereco: endereco.trim() || undefined,
+        dataAdmissao: dataAdmissaoISO || undefined,
+        senhaInicial: senhaInicial.trim(),
+        obraId,
       });
 
-      Alert.alert("Sucesso", "Operário cadastrado com sucesso!");
-      navigation.goBack();
+      const operarioId = operario?.id || operario?.usuario?.id;
+
+      Alert.alert("Cadastro criado", "Agora vamos capturar a biometria facial do operário.", [
+        {
+          text: "Continuar",
+          onPress: () =>
+            navigation.replace("EnrollBiometry", {
+              operarioId,
+              operarioNome: nomeCompleto.trim(),
+            }),
+        },
+      ]);
     } catch (err) {
       console.error("Erro ao cadastrar operário:", err);
-      // TODO: Tratar erros e retornar mensagens amigáveis baseadas na resposta da API
-      Alert.alert(
-        "Erro",
-        "Não foi possível salvar o cadastro no momento. Deseja tentar novamente?"
-      );
+      const backendMessage =
+        err?.response?.data?.detail ||
+        err?.response?.data?.cpf?.[0] ||
+        err?.response?.data?.email?.[0] ||
+        err?.response?.data?.senha_inicial?.[0];
+      Alert.alert("Erro", backendMessage || "Não foi possível salvar o cadastro no momento. Deseja tentar novamente?");
     } finally {
       setSaving(false);
     }
@@ -71,16 +101,41 @@ export default function RegisterWorkerScreen({ navigation }) {
             style={styles.input}
             placeholder="Digite o nome do operário"
             placeholderTextColor={COLORS.placeholder}
-            value={nome}
-            onChangeText={setNome}
+            value={nomeCompleto}
+            onChangeText={setNomeCompleto}
           />
         </View>
 
         <View style={styles.field}>
-          <Text style={styles.fieldLabel}>Endereço / CNPJ</Text>
+          <Text style={styles.fieldLabel}>CPF</Text>
           <TextInput
             style={styles.input}
-            placeholder="00.000.000/0000-0 ou Endereço"
+            placeholder="000.000.000-00"
+            placeholderTextColor={COLORS.placeholder}
+            value={cpf}
+            onChangeText={setCpf}
+            keyboardType="numeric"
+          />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>E-mail (opcional)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="email@exemplo.com"
+            placeholderTextColor={COLORS.placeholder}
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Endereço (opcional)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Rua, Número, Bairro, Cidade"
             placeholderTextColor={COLORS.placeholder}
             value={endereco}
             onChangeText={setEndereco}
@@ -90,15 +145,14 @@ export default function RegisterWorkerScreen({ navigation }) {
         <View style={styles.row}>
           <View style={[styles.field, { flex: 1, marginRight: SPACING.sm }]}>
             <Text style={styles.fieldLabel}>Cargo / Função</Text>
-            {/* TODO: Ajustar seletor dinâmico de cargos a partir do backend */}
-            <TouchableOpacity 
-              style={styles.selectInput} 
+            <TouchableOpacity
+              style={styles.selectInput}
               onPress={() => {
-                Alert.alert("Selecionar Cargo", "Funcionalidade de escolha de cargo mocado.", [
-                  { text: "Pedreiro", onPress: () => setCargo("Pedreiro") },
-                  { text: "Mestre de Obras", onPress: () => setCargo("Mestre de Obras") },
-                  { text: "Servente", onPress: () => setCargo("Servente") }
-                ]);
+                Alert.alert(
+                  "Selecionar Cargo",
+                  "",
+                  CARGOS.map((c) => ({ text: c, onPress: () => setCargo(c) }))
+                );
               }}
             >
               <Text style={styles.selectPlaceholder}>{cargo}</Text>
@@ -106,40 +160,42 @@ export default function RegisterWorkerScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           <View style={[styles.field, { flex: 1 }]}>
-            <Text style={styles.fieldLabel}>Admissão</Text>
+            <Text style={styles.fieldLabel}>Admissão (opcional)</Text>
             <TextInput
               style={styles.input}
-              placeholder="dd / mm / aaaa"
+              placeholder="dd/mm/aaaa"
               placeholderTextColor={COLORS.placeholder}
-              value={admissao}
-              onChangeText={setAdmissao}
+              value={dataAdmissao}
+              onChangeText={setDataAdmissao}
+              keyboardType="numeric"
             />
           </View>
         </View>
 
-        <Text style={styles.sectionLabel}>ID Facial</Text>
-        <TouchableOpacity 
-          style={[
-            styles.faceBox, 
-            faceId ? { borderColor: COLORS.success, backgroundColor: "rgba(46,204,113,0.05)" } : null
-          ]} 
-          onPress={handleFaceScan}
-        >
-          <Ionicons 
-            name={faceId ? "checkmark-circle-outline" : "scan-outline"} 
-            size={32} 
-            color={faceId ? COLORS.success : COLORS.primary} 
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Senha inicial</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Mínimo 8 caracteres"
+            placeholderTextColor={COLORS.placeholder}
+            value={senhaInicial}
+            onChangeText={setSenhaInicial}
+            secureTextEntry
           />
-          <Text style={[styles.faceBoxText, faceId ? { color: COLORS.success } : null]}>
-            {faceId ? "ID Facial Cadastrado" : "Escanear Rosto para Cadastro"}
+        </View>
+
+        <View style={styles.infoBox}>
+          <Ionicons name="information-circle-outline" size={18} color={COLORS.primary} />
+          <Text style={styles.infoBoxText}>
+            Depois de salvar, você vai capturar o rosto do operário para cadastrar a biometria facial dele.
           </Text>
-        </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
           {saving ? (
             <ActivityIndicator size="small" color={COLORS.textOnPrimary} />
           ) : (
-            <Text style={styles.saveBtnText}>Concluir</Text>
+            <Text style={styles.saveBtnText}>Salvar e continuar</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -183,17 +239,15 @@ const styles = StyleSheet.create({
   },
   selectPlaceholder: { fontSize: 13, color: COLORS.textDark },
   row: { flexDirection: "row" },
-  faceBox: {
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    borderStyle: "dashed",
+  infoBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "rgba(46,134,193,0.08)",
     borderRadius: RADIUS.md,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: SPACING.xl,
+    padding: SPACING.md,
     marginBottom: SPACING.lg,
   },
-  faceBoxText: { fontSize: 12, color: COLORS.primary, marginTop: SPACING.sm, fontWeight: "600" },
+  infoBoxText: { flex: 1, marginLeft: SPACING.sm, fontSize: 12, color: COLORS.textMuted },
   saveBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 16, alignItems: "center" },
   saveBtnText: { color: COLORS.textOnPrimary, fontWeight: "700", fontSize: 15 },
 });

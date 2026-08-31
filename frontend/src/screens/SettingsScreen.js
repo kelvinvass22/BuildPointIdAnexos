@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING, SHADOW } from "../theme/theme";
+import authService from "../services/authService";
 
 const ITEMS = [
   { icon: "person-outline", label: "Meu Perfil" },
@@ -26,7 +27,10 @@ export default function SettingsScreen({ navigation }) {
 
         <TouchableOpacity
           style={[styles.row, { marginTop: SPACING.lg }]}
-          onPress={() => navigation.getParent()?.navigate("Auth", { screen: "ProfileSelect" })}
+          onPress={async () => {
+            await authService.logout();
+            navigation.getParent()?.navigate("Auth", { screen: "ProfileSelect" });
+          }}
         >
           <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
           <Text style={[styles.rowLabel, { color: COLORS.danger }]}>Sair</Text>

@@ -3,12 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, Image, ActivityIndi
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING, SHADOW } from "../../theme/theme";
-import { currentObra, dailyAttendance } from "../../data/mockData";
 import { managerService } from "../../services/managerService";
 
 export default function ManagerDashboardScreen({ navigation }) {
-  const [obra, setObra] = useState(currentObra);
-  const [attendance, setAttendance] = useState(dailyAttendance);
+  const [obra, setObra] = useState(null);
+  const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -16,18 +15,16 @@ export default function ManagerDashboardScreen({ navigation }) {
     try {
       setLoading(true);
       setError(null);
-      // TODO: Ajustar rotas ou tipos com o backend
-      const [obraData, attendanceData] = await Promise.all([
-        managerService.getCurrentObra(),
-        managerService.getDailyAttendance()
-      ]);
-      
-      if (obraData) setObra(obraData);
-      if (attendanceData) setAttendance(attendanceData);
+      const obraData = await managerService.getObraAtual();
+      setObra(obraData);
+
+      if (obraData) {
+        const attendanceData = await managerService.getDailyAttendance();
+        setAttendance(attendanceData);
+      }
     } catch (err) {
       console.error("Erro ao carregar dados do painel:", err);
-      // TODO: Ajustar tratamento de erro e exibição de alertas
-      setError("Não foi possível conectar ao servidor. Exibindo dados locais.");
+      setError("Não foi possível conectar ao servidor.");
     } finally {
       setLoading(false);
     }
@@ -65,10 +62,10 @@ export default function ManagerDashboardScreen({ navigation }) {
         </View>
         <View style={{ flex: 1, marginLeft: SPACING.sm }}>
           <Text style={styles.headerLabel}>OBRA ATUAL</Text>
-          <Text style={styles.headerTitle}>{obra.name}</Text>
+          <Text style={styles.headerTitle}>{obra?.nome || "Nenhuma obra vinculada"}</Text>
           <View style={styles.headerAddrRow}>
             <Ionicons name="location-outline" size={12} color={COLORS.textOnPrimaryMuted} />
-            <Text style={styles.headerAddr}>{obra.address}</Text>
+            <Text style={styles.headerAddr}>{obra?.endereco || "--"}</Text>
           </View>
         </View>
       </View>
@@ -77,7 +74,8 @@ export default function ManagerDashboardScreen({ navigation }) {
       <View style={styles.quickActionsRow}>
         <TouchableOpacity
           style={styles.quickAction}
-          onPress={() => navigation.navigate("RadiusConfig")}
+          onPress={() => navigation.navigate("RadiusConfig", { obraId: obra?.id })}
+          disabled={!obra}
         >
           <View style={styles.quickActionIcon}>
             <Ionicons name="locate-outline" size={20} color={COLORS.primary} />
@@ -87,7 +85,8 @@ export default function ManagerDashboardScreen({ navigation }) {
 
         <TouchableOpacity
           style={styles.quickAction}
-          onPress={() => navigation.navigate("RegisterWorker")}
+          onPress={() => navigation.navigate("RegisterWorker", { obraId: obra?.id })}
+          disabled={!obra}
         >
           <View style={styles.quickActionIcon}>
             <Ionicons name="person-add-outline" size={20} color={COLORS.primary} />
@@ -96,7 +95,11 @@ export default function ManagerDashboardScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.registerTeamBtn} onPress={() => navigation.navigate("ManagerCamera")}>
+      <TouchableOpacity
+        style={styles.registerTeamBtn}
+        onPress={() => navigation.navigate("ManagerCamera", { obraId: obra?.id })}
+        disabled={!obra}
+      >
         <Ionicons name="camera-outline" size={18} color={COLORS.textOnPrimary} />
         <View style={{ marginLeft: SPACING.sm }}>
           <Text style={styles.registerTeamText}>Registrar Ponto da Equipe</Text>

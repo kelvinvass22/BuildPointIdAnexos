@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Alert, A
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING } from "../../theme/theme";
-import authService from "../../services/authService";
+import authService, { ROLE_TO_STACK } from "../../services/authService";
 
+// Fallback caso a resposta do backend não traga "papel" por algum motivo:
+// usa o perfil que a pessoa escolheu na tela anterior (ProfileSelectScreen).
 const ROLE_ROUTES = {
   owner: "OwnerStack",
   manager: "ManagerStack",
@@ -32,16 +34,21 @@ export default function LoginScreen({ navigation, route }) {
       // 2) A navegação só acontece se este await resolver (sucesso 200/201).
       // Se a API retornar erro, authService.login lança uma exceção
       // e o código pula direto para o catch, sem navegar.
-      await authService.login(cpf, password);
+      const data = await authService.login(cpf, password);
+
+      // Navega pelo "papel" que o backend confirmou, não pelo botão que a
+      // pessoa escolheu na tela anterior -- é o backend quem manda na
+      // autorização. Se por algum motivo não vier, cai no perfil escolhido.
+      const targetStack = ROLE_TO_STACK[data.papel] || ROLE_ROUTES[role];
 
       navigation.reset({
         index: 0,
-        routes: [{ name: ROLE_ROUTES[role] }],
+        routes: [{ name: targetStack }],
       });
     } catch (error) {
       // 3) Mantém o usuário na tela de login e mostra o erro.
       console.error(error);
-      Alert.alert("Erro de Login", "CPF ou senha inválidos, ou erro no servidor.");
+      Alert.alert("Erro de Login", error?.message || "CPF ou senha inválidos, ou erro no servidor.");
     } finally {
       // 4) isLoading sempre é desligado, independente do resultado.
       setIsLoading(false);

@@ -1,34 +1,97 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING, SHADOW } from "../../theme/theme";
-import { currentWorker } from "../../data/mockData";
+import { workerService } from "../../services/workerService";
+import authService from "../../services/authService";
 
 export default function WorkerHomeScreen({ navigation }) {
+  const [worker, setWorker] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadHomeStatus = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // TODO: Ajustar rota ou tipo com o backend se necessário
+      const data = await workerService.getHomeStatus();
+      setWorker(data);
+    } catch (err) {
+      console.error("Erro ao carregar dados do operário:", err);
+      // TODO: Ajustar tratamento de erro com o backend
+      setError("Não foi possível conectar ao servidor.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert("Sair", "Deseja realmente sair da sua conta?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Sair",
+        style: "destructive",
+        onPress: async () => {
+          await authService.logout();
+          navigation.getParent()?.reset({ index: 0, routes: [{ name: "Auth", params: { screen: "ProfileSelect" } }] });
+        },
+      },
+    ]);
+  };
+
+  useEffect(() => {
+    loadHomeStatus();
+  }, []);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: SPACING.md, color: COLORS.textMuted, fontSize: 14 }}>
+          Carregando...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !worker) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center", paddingHorizontal: SPACING.lg }]}>
+        <Text style={{ color: COLORS.textMuted, fontSize: 14, textAlign: "center", marginBottom: SPACING.md }}>
+          {error || "Não foi possível carregar seus dados."}
+        </Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={loadHomeStatus}>
+          <Text style={styles.retryBtnText}>Tentar Novamente</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Olá , {currentWorker.name}</Text>
+          <Text style={styles.greeting}>Olá , {worker.name}</Text>
           <View style={styles.locationRow}>
             <MaterialIcons name="restaurant" size={14} color={COLORS.textMuted} />
-            <Text style={styles.locationText}>{currentWorker.location}</Text>
+            <Text style={styles.locationText}>{worker.location}</Text>
           </View>
         </View>
-        <View style={styles.avatarWrap}>
-          <Ionicons name="qr-code-outline" size={18} color={COLORS.primary} />
-        </View>
+        <TouchableOpacity style={styles.avatarWrap} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={20} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.center}>
-        <Text style={styles.clock}>{currentWorker.time}</Text>
-        <Text style={styles.dateLabel}>{currentWorker.dateLabel}</Text>
+        <Text style={styles.clock}>{worker.time}</Text>
+        <Text style={styles.dateLabel}>{worker.dateLabel}</Text>
 
         <TouchableOpacity
           style={styles.bigButton}
           activeOpacity={0.85}
-          onPress={() => navigation.navigate("WorkerCamera")}
+          onPress={() => navigation.navigate("WorkerCamera", { obraId: worker.obraId })}
         >
           <Ionicons name="scan-outline" size={40} color={COLORS.textOnPrimary} />
           <Text style={styles.bigButtonText}>BATER PONTO{"\n"}AGORA</Text>
@@ -97,4 +160,6 @@ const styles = StyleSheet.create({
   },
   bottomBarItem: { flex: 1, alignItems: "center" },
   bottomBarLabel: { color: COLORS.textOnPrimary, fontSize: 11, marginTop: 2, fontWeight: "600" },
+  retryBtn: { backgroundColor: COLORS.primary, paddingHorizontal: SPACING.lg, paddingVertical: 10, borderRadius: RADIUS.sm },
+  retryBtnText: { color: COLORS.textOnPrimary, fontSize: 13, fontWeight: "700" },
 });
