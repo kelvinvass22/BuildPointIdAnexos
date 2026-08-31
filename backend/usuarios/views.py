@@ -27,6 +27,14 @@ class MeView(APIView):
     def get(self, request):
         data = UsuarioSerializer(request.user).data
         data["tela_inicial"] = request.user.tela_inicial()
+
+        if request.user.papel == "OPERARIO":
+            try:
+                perfil = request.user.perfil_operario
+                data["perfil"] = PerfilOperarioSerializer(perfil).data
+            except PerfilOperario.DoesNotExist:
+                data["perfil"] = None
+
         return Response(data)
 
 
