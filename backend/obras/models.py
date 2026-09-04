@@ -104,3 +104,26 @@ class VinculoGerente(models.Model):
 
     def __str__(self):
         return f"{self.gerente} — {self.especialidade} ({self.obra.nome})"
+
+
+class Equipe(models.Model):
+    """Grupo operacional de trabalhadores dentro de uma obra."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    obra = models.ForeignKey(Obra, on_delete=models.CASCADE, related_name="equipes")
+    nome = models.CharField(max_length=100)
+    gerente = models.ForeignKey(
+        "usuarios.Usuario", on_delete=models.PROTECT, related_name="equipes_lideradas",
+        limit_choices_to={"papel": "GERENTE"},
+    )
+    membros = models.ManyToManyField("usuarios.PerfilOperario", related_name="equipes", blank=True)
+    ativa = models.BooleanField(default=True)
+    criada_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "equipes"
+        constraints = [models.UniqueConstraint(fields=["obra", "nome"], name="equipe_nome_unico_por_obra")]
+        ordering = ["nome"]
+
+    def __str__(self):
+        return f"{self.nome} ({self.obra.nome})"

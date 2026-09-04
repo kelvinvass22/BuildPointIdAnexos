@@ -3,9 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from usuarios.permissions import EhDono, EhGerente
+from ponto.services import registrar_log_administrativo
 
-from .models import Obra
-from .serializers import ConfigurarGeofenceSerializer, ObraSerializer, VincularGerenteSerializer, VinculoGerenteSerializer
+from .models import Equipe, Obra
+from .serializers import ConfigurarGeofenceSerializer, EquipeSerializer, ObraSerializer, VincularGerenteSerializer, VinculoGerenteSerializer
 
 
 class ObraViewSet(viewsets.ModelViewSet):
@@ -30,6 +31,16 @@ class ObraViewSet(viewsets.ModelViewSet):
         if usuario.papel == "GERENTE":
             return qs.filter(gerentes=usuario)
         return qs.filter(dono=usuario)
+
+    def perform_update(self, serializer):
+        obra = serializer.save()
+        registrar_log_administrativo(
+            ator=self.request.user,
+            acao="ATUALIZAR_OBRA",
+            alvo_tipo="Obra",
+            alvo_id=obra.pk,
+            detalhes={"campos": list(serializer.validated_data.keys())},
+        )
 
     @action(detail=True, methods=["post"], permission_classes=[EhGerente])
     def configurar_geofence(self, request, pk=None):
@@ -57,3 +68,28 @@ class ObraViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         vinculo = serializer.save()
         return Response(VinculoGerenteSerializer(vinculo).data, status=status.HTTP_201_CREATED)
+
+
+class EquipeViewSet(viewsets.ModelViewSet):
+    serializer_class = EquipeSerializer
+    permission_classes = [EhDono | EhGerente]
+
+    def get_queryset(self):
+        usuario = self.request.user
+        qs = Equipe.objects.select_related("obra", "gerente").prefetch_related("membros__usuario")
+        if usuario.papel == "GERENTE":
+            return qs.filter(obra__gerentes=usuario)
+        return qs.filter(obra__dono=usuario)
+
+    def perform_create(self, serializer):
+        if self.request.user.papel == "GERENTE":
+            equipe = serializer.save(gerente=self.request.user)
+        else:
+            equipe = serializer.save()
+        registrar_log_administrativo(
+            ator=self.request.user,
+            acao="CRIAR_EQUIPE",
+            alvo_tipo="Equipe",
+            alvo_id=equipe.pk,
+            detalhes={"nome": equipe.nome, "obra_id": str(equipe.obra_id)},
+        )
