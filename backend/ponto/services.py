@@ -113,7 +113,10 @@ def registrar_ponto(
 
     resultado = get_servico_facial().comparar_vetores(vetor_facial, operario.biometria.vetor_criptografado)
     if not resultado.identidade_confirmada:
-        raise IdentidadeNaoConfirmadaError("Confiança facial insuficiente -- tente novamente.")
+        raise IdentidadeNaoConfirmadaError(
+            f"Confiança facial insuficiente ({resultado.confianca:.3f}; mínimo 0.900). "
+            "Centralize o rosto, retire obstáculos e tente novamente."
+        )
 
     return _persistir_marcacao(
         operario=operario, obra=obra, latitude=latitude, longitude=longitude,
