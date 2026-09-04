@@ -30,7 +30,17 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from .models import MarcacaoPonto, OrigemMarcacao, TipoMarcacao
+from .models import LogAdministrativo, MarcacaoPonto, OrigemMarcacao, TipoMarcacao
+
+
+def registrar_log_administrativo(*, ator, acao, alvo_tipo, alvo_id="", detalhes=None):
+    return LogAdministrativo.objects.create(
+        ator=ator,
+        acao=acao,
+        alvo_tipo=alvo_tipo,
+        alvo_id=str(alvo_id),
+        detalhes=detalhes or {},
+    )
 
 
 class ForaDoPerimetroError(Exception):
@@ -89,6 +99,8 @@ def registrar_ponto(
     tipo: str = TipoMarcacao.ENTRADA,
     dispositivo_id: str = "",
     sistema_operacional: str = "",
+    data_hora=None,
+    offline: bool = False,
     registrado_por=None,
 ) -> MarcacaoPonto:
     """RF07-RF11/UC06 -- batida normal do Operário, com validação facial por vetor."""
@@ -106,9 +118,9 @@ def registrar_ponto(
     return _persistir_marcacao(
         operario=operario, obra=obra, latitude=latitude, longitude=longitude,
         precisao_gps_metros=precisao_gps_metros, confianca_face=resultado.confianca,
-        tipo=tipo, origem=OrigemMarcacao.APP_OPERARIO,
+        tipo=tipo, origem=OrigemMarcacao.SYNC_OFFLINE if offline else OrigemMarcacao.APP_OPERARIO,
         dispositivo_id=dispositivo_id, sistema_operacional=sistema_operacional,
-        registrado_por=registrado_por or operario.usuario, data_hora=timezone.now(),
+        registrado_por=registrado_por or operario.usuario, data_hora=data_hora or timezone.now(),
     )
 
 

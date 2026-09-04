@@ -5,6 +5,7 @@ from . import views
 app_name = "ponto"
 
 urlpatterns = [
+    path("horario/", views.ServerTimeView.as_view(), name="horario_servidor"),
     # bate com o SQ01 da Etapa 3: POST /marcacoes
     path("marcacoes/", views.RegistrarPontoView.as_view(), name="registrar_ponto"),
     path("marcacoes/contingencia/", views.RegistrarContingenciaView.as_view(), name="contingencia"),

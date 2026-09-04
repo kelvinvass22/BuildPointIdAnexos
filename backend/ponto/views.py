@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import CreateAPIView, ListAPIView
@@ -39,6 +40,16 @@ def _resposta_erro_registro(exc):
     return Response({"detail": str(exc), "codigo": "ERRO_REGISTRO_PONTO"}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ServerTimeView(APIView):
+    """Relógio oficial da aplicação para reduzir divergências do aparelho."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        now = timezone.now()
+        return Response({"agora": now.isoformat(), "timestamp": now.timestamp()})
+
+
 class RegistrarPontoView(CreateAPIView):
     """
     UC06 — Registrar Ponto Eletrônico (RF07-RF11). Implementa o SQ01.
@@ -76,6 +87,8 @@ class RegistrarPontoView(CreateAPIView):
                 tipo=dados["tipo"],
                 dispositivo_id=dados.get("dispositivo_id", ""),
                 sistema_operacional=dados.get("sistema_operacional", ""),
+                data_hora=dados.get("data_hora"),
+                offline=dados.get("offline", False),
                 registrado_por=request.user,
             )
         except (ForaDoPerimetroError, BiometriaNaoCadastradaError, IdentidadeNaoConfirmadaError) as exc:

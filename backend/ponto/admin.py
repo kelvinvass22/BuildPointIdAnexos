@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import LogAuditoria, MarcacaoPonto, SessaoOffline
+from .models import LogAdministrativo, LogAuditoria, MarcacaoPonto, SessaoOffline
 
 
 @admin.register(MarcacaoPonto)
@@ -36,3 +36,20 @@ class LogAuditoriaAdmin(admin.ModelAdmin):
 class SessaoOfflineAdmin(admin.ModelAdmin):
     list_display = ("dispositivo_id", "status", "criada_em", "sincronizada_em")
     list_filter = ("status",)
+
+
+@admin.register(LogAdministrativo)
+class LogAdministrativoAdmin(admin.ModelAdmin):
+    list_display = ("criado_em", "ator", "acao", "alvo_tipo", "alvo_id")
+    list_filter = ("acao", "alvo_tipo")
+    search_fields = ("ator__cpf", "alvo_id")
+    readonly_fields = ("ator", "acao", "alvo_tipo", "alvo_id", "detalhes", "criado_em")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

@@ -117,3 +117,19 @@ class LogAuditoria(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValueError("LogAuditoria é imutável e não pode ser apagado (Portaria 671/MTE).")
+
+
+class LogAdministrativo(models.Model):
+    """Rastreia ações de gestão sem registrar segredos ou biometria."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ator = models.ForeignKey("usuarios.Usuario", on_delete=models.PROTECT, related_name="logs_administrativos")
+    acao = models.CharField(max_length=80)
+    alvo_tipo = models.CharField(max_length=80)
+    alvo_id = models.CharField(max_length=100, blank=True)
+    detalhes = models.JSONField(default=dict, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "logs_administrativos"
+        ordering = ["-criado_em"]

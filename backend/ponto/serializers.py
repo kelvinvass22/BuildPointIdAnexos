@@ -37,6 +37,9 @@ class RegistrarPontoSerializer(serializers.Serializer):
     vetor_facial = serializers.ListField(child=serializers.FloatField(), min_length=8)
     dispositivo_id = serializers.CharField(max_length=150, required=False, allow_blank=True)
     sistema_operacional = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    data_hora = serializers.DateTimeField(required=False)
+    offline = serializers.BooleanField(required=False, default=False, write_only=True)
+    idempotency_key = serializers.CharField(max_length=100, required=False, allow_blank=True, write_only=True)
 
 
 class RegistrarContingenciaSerializer(serializers.Serializer):
