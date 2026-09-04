@@ -9,9 +9,11 @@ from .serializers import (
     CadastrarGerenteSerializer,
     CadastrarOperarioSerializer,
     LoginSerializer,
+    PerfilGerenteSerializer,
     PerfilOperarioSerializer,
     UsuarioSerializer,
 )
+from ponto.services import registrar_log_administrativo
 
 
 class LoginView(TokenObtainPairView):
@@ -33,6 +35,11 @@ class MeView(APIView):
                 perfil = request.user.perfil_operario
                 data["perfil"] = PerfilOperarioSerializer(perfil).data
             except PerfilOperario.DoesNotExist:
+                data["perfil"] = None
+        elif request.user.papel == "GERENTE":
+            try:
+                data["perfil"] = PerfilGerenteSerializer(request.user.perfil_gerente).data
+            except Exception:
                 data["perfil"] = None
 
         return Response(data)
@@ -73,3 +80,35 @@ class ListarOperariosView(generics.ListAPIView):
         if usuario.papel == "GERENTE":
             return qs.filter(obra__gerentes=usuario)
         return qs.filter(obra__dono=usuario)
+
+
+class RemoverOperarioView(APIView):
+    """Desativa e desvincula um operário sem apagar seu histórico."""
+
+    permission_classes = [EhGerente | EhDono]
+
+    def post(self, request, pk):
+        try:
+            perfil = PerfilOperario.objects.select_related("usuario", "obra").get(pk=pk)
+        except PerfilOperario.DoesNotExist:
+            return Response({"detail": "Operário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        autorizado = (
+            request.user.papel == "GERENTE" and perfil.obra and perfil.obra.gerentes.filter(pk=request.user.pk).exists()
+        ) or (request.user.papel == "DONO" and perfil.obra and perfil.obra.dono_id == request.user.pk)
+        if not autorizado:
+            return Response({"detail": "Você não gerencia este operário."}, status=status.HTTP_403_FORBIDDEN)
+
+        obra_anterior_id = perfil.obra_id
+        perfil.usuario.ativo = False
+        perfil.usuario.save(update_fields=["ativo"])
+        perfil.obra = None
+        perfil.save(update_fields=["obra"])
+        registrar_log_administrativo(
+            ator=request.user,
+            acao="REMOVER_OPERARIO",
+            alvo_tipo="PerfilOperario",
+            alvo_id=perfil.pk,
+            detalhes={"obra_id": str(obra_anterior_id) if obra_anterior_id else None},
+        )
+        return Response({"detail": "Operário removido da equipe e acesso desativado."})

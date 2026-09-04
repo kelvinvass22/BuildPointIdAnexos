@@ -88,6 +88,7 @@ class PerfilGerente(models.Model):
         Usuario, on_delete=models.CASCADE, related_name="perfil_gerente", primary_key=True
     )
     telefone = models.CharField(max_length=20, blank=True)
+    tipo_gerente = models.CharField(max_length=80, blank=True)
 
     class Meta:
         db_table = "perfis_gerente"
@@ -106,6 +107,12 @@ class PerfilOperario(models.Model):
         Usuario, on_delete=models.CASCADE, related_name="perfil_operario", primary_key=True
     )
     cargo = models.CharField(max_length=100, blank=True)
+    tipo_vinculo = models.CharField(
+        max_length=20,
+        choices=[("PROPRIO", "Próprio"), ("TERCEIRIZADO", "Terceirizado")],
+        default="PROPRIO",
+    )
+    empresa_terceirizada = models.CharField(max_length=150, blank=True)
     endereco = models.CharField(max_length=255, blank=True)
     data_admissao = models.DateField(null=True, blank=True)
     obra = models.ForeignKey(

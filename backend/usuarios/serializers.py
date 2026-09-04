@@ -51,9 +51,18 @@ class PerfilOperarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = PerfilOperario
         fields = [
-            "usuario", "cargo", "endereco", "data_admissao", "obra", "obra_nome",
+            "usuario", "cargo", "tipo_vinculo", "empresa_terceirizada", "endereco", "data_admissao", "obra", "obra_nome",
             "biometria_cadastrada_em", "possui_biometria_ativa",
         ]
+
+
+class PerfilGerenteSerializer(serializers.ModelSerializer):
+    usuario = UsuarioSerializer(read_only=True)
+
+    class Meta:
+        model = PerfilGerente
+        fields = ["usuario", "telefone", "tipo_gerente"]
+        read_only_fields = ["usuario"]
 
 
 class CadastrarOperarioSerializer(serializers.Serializer):
@@ -67,6 +76,8 @@ class CadastrarOperarioSerializer(serializers.Serializer):
     cpf = serializers.CharField(max_length=14)
     email = serializers.EmailField(required=False, allow_blank=True)
     cargo = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    tipo_vinculo = serializers.ChoiceField(choices=["PROPRIO", "TERCEIRIZADO"], default="PROPRIO")
+    empresa_terceirizada = serializers.CharField(max_length=150, required=False, allow_blank=True)
     endereco = serializers.CharField(max_length=255, required=False, allow_blank=True)
     data_admissao = serializers.DateField(required=False, allow_null=True)
     senha_inicial = serializers.CharField(write_only=True, min_length=8)
@@ -98,6 +109,8 @@ class CadastrarOperarioSerializer(serializers.Serializer):
         return PerfilOperario.objects.create(
             usuario=usuario,
             cargo=validated_data.get("cargo", ""),
+            tipo_vinculo=validated_data.get("tipo_vinculo", "PROPRIO"),
+            empresa_terceirizada=validated_data.get("empresa_terceirizada", ""),
             endereco=validated_data.get("endereco", ""),
             data_admissao=validated_data.get("data_admissao"),
             obra=obra,
@@ -111,6 +124,7 @@ class CadastrarGerenteSerializer(serializers.Serializer):
     cpf = serializers.CharField(max_length=14)
     email = serializers.EmailField()
     telefone = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    tipo_gerente = serializers.CharField(max_length=80, required=False, allow_blank=True)
     senha_inicial = serializers.CharField(write_only=True, min_length=8)
 
     def validate_cpf(self, value):
@@ -130,5 +144,6 @@ class CadastrarGerenteSerializer(serializers.Serializer):
             papel="GERENTE",
         )
         return PerfilGerente.objects.create(
-            usuario=usuario, telefone=validated_data.get("telefone", "")
+            usuario=usuario, telefone=validated_data.get("telefone", ""),
+            tipo_gerente=validated_data.get("tipo_gerente", ""),
         )
