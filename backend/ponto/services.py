@@ -25,12 +25,15 @@ outro cenário), é só reverter esse trecho -- a classe
 por padrão (fica comentada no fim do arquivo).
 """
 import hashlib
+import logging
 
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
 from .models import LogAdministrativo, MarcacaoPonto, OrigemMarcacao, TipoMarcacao
+
+logger = logging.getLogger(__name__)
 
 
 def registrar_log_administrativo(*, ator, acao, alvo_tipo, alvo_id="", detalhes=None):
@@ -55,10 +58,19 @@ class BiometriaNaoCadastradaError(Exception):
     """Operário ainda não passou pelo UC05."""
 
 
+class BiometriaInvalidaError(Exception):
+    """Vetor facial armazenado não pode ser lido ou comparado."""
+
+
 def gerar_nsr() -> str:
     """Número Sequencial de Registro, exigido pelo AFD (Portaria 671/MTE)."""
-    ultimo = MarcacaoPonto.objects.order_by("-nsr").values_list("nsr", flat=True).first()
-    proximo = int(ultimo) + 1 if ultimo else 1
+    nsrs_numericos = []
+    for valor in MarcacaoPonto.objects.values_list("nsr", flat=True):
+        try:
+            nsrs_numericos.append(int(valor))
+        except (TypeError, ValueError):
+            logger.warning("NSR legado inválido ignorado: %r", valor)
+    proximo = max(nsrs_numericos, default=0) + 1
     return str(proximo).zfill(9)
 
 
@@ -111,7 +123,13 @@ def registrar_ponto(
 
     from biometria.services import get_servico_facial
 
-    resultado = get_servico_facial().comparar_vetores(vetor_facial, operario.biometria.vetor_criptografado)
+    try:
+        resultado = get_servico_facial().comparar_vetores(vetor_facial, operario.biometria.vetor_criptografado)
+    except (TypeError, ValueError) as exc:
+        logger.exception("Biometria inválida para o operário %s", operario.pk)
+        raise BiometriaInvalidaError(
+            "A biometria cadastrada está inválida. Solicite ao gerente um novo cadastro facial."
+        ) from exc
     if not resultado.identidade_confirmada:
         raise IdentidadeNaoConfirmadaError(
             f"Confiança facial insuficiente ({resultado.confianca:.3f}; mínimo 0.900). "

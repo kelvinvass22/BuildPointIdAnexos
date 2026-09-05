@@ -1,3 +1,5 @@
+import logging
+
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
@@ -21,6 +23,7 @@ from .serializers import (
 )
 from .services import (
     BiometriaNaoCadastradaError,
+    BiometriaInvalidaError,
     ForaDoPerimetroError,
     IdentidadeNaoConfirmadaError,
     registrar_ponto,
@@ -29,12 +32,16 @@ from .services import (
     verificar_integridade,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def _resposta_erro_registro(exc):
     if isinstance(exc, ForaDoPerimetroError):
         return Response({"detail": str(exc), "codigo": "FORA_DO_PERIMETRO"}, status=status.HTTP_403_FORBIDDEN)
     if isinstance(exc, BiometriaNaoCadastradaError):
         return Response({"detail": str(exc), "codigo": "BIOMETRIA_AUSENTE"}, status=status.HTTP_412_PRECONDITION_FAILED)
+    if isinstance(exc, BiometriaInvalidaError):
+        return Response({"detail": str(exc), "codigo": "BIOMETRIA_INVALIDA"}, status=status.HTTP_409_CONFLICT)
     if isinstance(exc, IdentidadeNaoConfirmadaError):
         return Response({"detail": str(exc), "codigo": "IDENTIDADE_NAO_CONFIRMADA"}, status=status.HTTP_401_UNAUTHORIZED)
     return Response({"detail": str(exc), "codigo": "ERRO_REGISTRO_PONTO"}, status=status.HTTP_400_BAD_REQUEST)
@@ -91,8 +98,14 @@ class RegistrarPontoView(CreateAPIView):
                 offline=dados.get("offline", False),
                 registrado_por=request.user,
             )
-        except (ForaDoPerimetroError, BiometriaNaoCadastradaError, IdentidadeNaoConfirmadaError) as exc:
+        except (ForaDoPerimetroError, BiometriaNaoCadastradaError, BiometriaInvalidaError, IdentidadeNaoConfirmadaError) as exc:
             return _resposta_erro_registro(exc)
+        except ValueError:
+            logger.exception("ValueError não tratado ao registrar ponto")
+            return Response(
+                {"detail": "Não foi possível processar a marcação. Tente novamente ou solicite suporte.", "codigo": "ERRO_PROCESSAMENTO_MARCACAO"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         return Response(MarcacaoPontoSerializer(marcacao).data, status=status.HTTP_201_CREATED)
 
