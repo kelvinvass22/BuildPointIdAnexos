@@ -69,8 +69,18 @@ class RegistrarPontoView(CreateAPIView):
     throttle_scope = "marcacoes"
 
     def create(self, request, *args, **kwargs):
+        logger.info(
+            "Início de marcação: usuario=%s chaves=%s content_type=%s",
+            request.user.pk,
+            sorted(request.data.keys()),
+            request.content_type,
+        )
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception:
+            logger.exception("Payload inválido na marcação: usuario=%s", request.user.pk)
+            raise
         dados = serializer.validated_data
 
         try:
@@ -99,6 +109,11 @@ class RegistrarPontoView(CreateAPIView):
                 registrado_por=request.user,
             )
         except (ForaDoPerimetroError, BiometriaNaoCadastradaError, BiometriaInvalidaError, IdentidadeNaoConfirmadaError) as exc:
+            logger.warning(
+                "Marcação recusada: usuario=%s codigo=%s",
+                request.user.pk,
+                type(exc).__name__,
+            )
             return _resposta_erro_registro(exc)
         except ValueError:
             logger.exception("ValueError não tratado ao registrar ponto")

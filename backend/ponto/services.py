@@ -116,6 +116,7 @@ def registrar_ponto(
     registrado_por=None,
 ) -> MarcacaoPonto:
     """RF07-RF11/UC06 -- batida normal do Operário, com validação facial por vetor."""
+    logger.info("Validando geofence: operario=%s obra=%s", operario.pk, obra.pk)
     _validar_geofence(obra, latitude, longitude)
 
     if not hasattr(operario, "biometria"):
@@ -124,6 +125,7 @@ def registrar_ponto(
     from biometria.services import get_servico_facial
 
     try:
+        logger.info("Comparando biometria: operario=%s", operario.pk)
         resultado = get_servico_facial().comparar_vetores(vetor_facial, operario.biometria.vetor_criptografado)
     except (TypeError, ValueError) as exc:
         logger.exception("Biometria inválida para o operário %s", operario.pk)
@@ -136,6 +138,7 @@ def registrar_ponto(
             "Centralize o rosto, retire obstáculos e tente novamente."
         )
 
+    logger.info("Persistindo marcação: operario=%s obra=%s", operario.pk, obra.pk)
     return _persistir_marcacao(
         operario=operario, obra=obra, latitude=latitude, longitude=longitude,
         precisao_gps_metros=precisao_gps_metros, confianca_face=resultado.confianca,
