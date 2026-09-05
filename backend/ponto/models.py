@@ -110,7 +110,7 @@ class LogAuditoria(models.Model):
         return f"Log de {self.marcacao_id}"
 
     def save(self, *args, **kwargs):
-        if self.pk is not None:
+        if not self._state.adding:
             # RS03/Portaria 671: uma vez criado, o log não pode ser alterado.
             raise ValueError("LogAuditoria é imutável e não pode ser editado após criado.")
         super().save(*args, **kwargs)

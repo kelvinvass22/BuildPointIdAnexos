@@ -76,7 +76,7 @@ class ListarOperariosView(generics.ListAPIView):
 
     def get_queryset(self):
         usuario = self.request.user
-        qs = PerfilOperario.objects.select_related("usuario", "obra")
+        qs = PerfilOperario.objects.select_related("usuario", "obra").order_by("usuario__last_name", "usuario__first_name", "usuario_id")
         if usuario.papel == "GERENTE":
             return qs.filter(obra__gerentes=usuario)
         return qs.filter(obra__dono=usuario)
