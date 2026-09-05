@@ -66,6 +66,7 @@ class Obra(models.Model):
         )
         dlat, dlon = lat2 - lat1, lon2 - lon1
         a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+        a = max(0.0, min(1.0, a))
         return RAIO_TERRA_METROS * 2 * asin(sqrt(a))
 
     def esta_dentro_do_raio(self, latitude: float, longitude: float) -> bool:
