@@ -82,6 +82,8 @@ class ServicoSimilaridadeCosseno(ServicoReconhecimentoFacial):
         import json
 
         vetor_ref = json.loads(vetor_referencia)
+        if not vetor_capturado or not vetor_ref:
+            return ResultadoComparacaoFacial(confianca=0.0, identidade_confirmada=False)
         confianca = self._similaridade_cosseno(vetor_capturado, vetor_ref)
         return ResultadoComparacaoFacial(
             confianca=confianca, identidade_confirmada=confianca >= self.LIMIAR_CONFIANCA
