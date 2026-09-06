@@ -15,8 +15,12 @@ class BiometriaFacial(models.Model):
     )
     vetor_criptografado = models.TextField(help_text="Vetor facial cifrado -- nunca a imagem crua (RS02/LGPD).")
     algoritmo = models.CharField(
-        max_length=50, default="sdk-dispositivo",
-        help_text="Identifica o SDK que extraiu o vetor no aparelho (ex.: ML Kit, MediaPipe) -- não é mais processado no backend.",
+        max_length=50, default="mobilefacenet-tflite-v1",
+        help_text=(
+            "Identifica o modelo que gerou o embedding no aparelho (ex.: mobilefacenet-tflite-v1, "
+            "via react-native-fast-tflite). Nunca compare vetores de algoritmos diferentes -- "
+            "espaços vetoriais incompatíveis (ver biometria/services.py)."
+        ),
     )
     qualidade_amostra = models.FloatField()
     capturado_em = models.DateTimeField(auto_now_add=True)

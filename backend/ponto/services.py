@@ -134,7 +134,8 @@ def registrar_ponto(
         ) from exc
     if not resultado.identidade_confirmada:
         raise IdentidadeNaoConfirmadaError(
-            f"Confiança facial insuficiente ({resultado.confianca:.3f}; mínimo 0.900). "
+            f"Confiança facial insuficiente ({resultado.confianca:.3f}; "
+            f"mínimo {settings.FACE_LIMIAR_CONFIANCA:.3f}). "
             "Centralize o rosto, retire obstáculos e tente novamente."
         )
 

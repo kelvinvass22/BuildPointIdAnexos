@@ -175,6 +175,49 @@ BIRDID_API_URL = env("BIRDID_API_URL", default="")
 BIRDID_API_TOKEN = env("BIRDID_API_TOKEN", default="")
 
 # --------------------------------------------------------------------------
+# Biometria facial (RS02/LGPD) — troca de arquitetura: TensorFlow.js +
+# landmarks geométricos (proporções do rosto) -> embedding real de rede
+# neural (ArcFace/MobileFaceNet, .tflite, extraído no dispositivo com
+# `react-native-fast-tflite`). Ver frontend/src/services/faceVectorService.js.
+#
+# FACE_LIMIAR_CONFIANCA: limiar de similaridade de cosseno pra aceitar uma
+# batida como a mesma pessoa. O valor de 0.90 (herdado da fase de vetor
+# geométrico) NÃO se aplica a embeddings de rede treinada -- a distribuição
+# de similaridade é outra.
+#
+# O modelo em uso (frontend/assets/models/mobilefacenet.tflite, do
+# repositório MCarlomagno/FaceRecognitionAuth) tem, na implementação de
+# referência (Flutter/tflite_flutter), um limiar publicado de DISTÂNCIA
+# EUCLIDIANA <= 0.5 sobre o embedding bruto (sem normalizar). Aqui o
+# embedding é L2-normalizado antes de comparar (ver
+# faceVectorService.js:l2Normalize / biometria/services.py), então dá pra
+# converter: pra vetores unitários, distância^2 = 2 - 2*cosseno, logo
+# cosseno = 1 - distância^2/2. Com distância=0.5: cosseno ~= 0.875. Esse é
+# só o ponto de partida -- o 0.5 de referência também não era rigorosamente
+# calibrado, então valide com capturas reais (mesma pessoa em
+# ângulos/dias diferentes deve ficar ACIMA do limiar; pessoas diferentes,
+# ABAIXO) antes de ir pra produção. Ajustável sem deploy de código via
+# variável de ambiente.
+FACE_LIMIAR_CONFIANCA = float(env("FACE_LIMIAR_CONFIANCA", default="0.875"))
+
+# Identifica, nos registros novos, qual SDK/modelo gerou o vetor -- útil
+# pra nunca comparar um vetor geométrico antigo com um embedding novo (são
+# espaços vetoriais diferentes; ver BiometriaFacial.algoritmo).
+FACE_ALGORITMO_PADRAO = env("FACE_ALGORITMO_PADRAO", default="mobilefacenet-tflite-v1")
+
+# Chave simétrica (Fernet) usada para cifrar o vetor/embedding em repouso
+# (biometria/services.py). Antes esse campo só era JSON puro -- virou
+# crítico cifrar de verdade agora que o endpoint /api/biometria/minha/
+# manda esse valor de volta pro APARELHO DO PRÓPRIO OPERÁRIO (pra permitir
+# validação facial 100% offline). Gere uma chave com:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# e configure via variável de ambiente em produção -- o default abaixo só
+# serve pra não quebrar em dev/testes locais.
+BIOMETRIA_ENCRYPTION_KEY = env(
+    "BIOMETRIA_ENCRYPTION_KEY", default="4Z9pump3EhI8f4gJKzC-9x6vT2s0y7wq1nL5bR8dMoA="
+)
+
+# --------------------------------------------------------------------------
 # Logging — RS03 pede rastreabilidade; log estruturado ajuda a debugar sem
 # nunca logar dado biométrico ou senha.
 # --------------------------------------------------------------------------
