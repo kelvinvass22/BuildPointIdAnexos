@@ -97,16 +97,38 @@ export const managerService = {
    * A biometria é enviada depois, numa chamada separada (ver cadastrarBiometria).
    * Rota: POST /api/usuarios/operarios/cadastrar/
    */
-  async cadastrarOperario({ nomeCompleto, cpf, email, cargo, endereco, dataAdmissao, senhaInicial, obraId }) {
+  async cadastrarOperario({ nomeCompleto, cpf, email, cargo, tipoVinculo, empresaTerceirizada, endereco, dataAdmissao, senhaInicial, obraId }) {
     const response = await api.post('/api/usuarios/operarios/cadastrar/', {
       nome_completo: nomeCompleto,
       cpf,
       ...(email ? { email } : {}),
       ...(cargo ? { cargo } : {}),
+      tipo_vinculo: tipoVinculo || 'PROPRIO',
+      ...(empresaTerceirizada ? { empresa_terceirizada: empresaTerceirizada } : {}),
       ...(endereco ? { endereco } : {}),
       ...(dataAdmissao ? { data_admissao: dataAdmissao } : {}),
       senha_inicial: senhaInicial,
       obra_id: obraId,
+    });
+    return response.data;
+  },
+
+  async removerOperario(operarioId) {
+    const response = await api.post(`/api/usuarios/operarios/${operarioId}/remover/`);
+    return response.data;
+  },
+
+  async listarEquipes() {
+    const response = await api.get('/api/obras/equipes/');
+    return response.data?.results || (Array.isArray(response.data) ? response.data : []);
+  },
+
+  async criarEquipe({ obraId, nome, gerenteId, membros }) {
+    const response = await api.post('/api/obras/equipes/', {
+      obra: obraId,
+      nome,
+      gerente: gerenteId,
+      membros: membros || [],
     });
     return response.data;
   },
@@ -116,12 +138,25 @@ export const managerService = {
    * Rota: POST /api/biometria/cadastrar/
    */
   async cadastrarBiometria({ operarioId, vetorFacial, qualidadeAmostra }) {
-    const response = await api.post('/api/biometria/cadastrar/', {
-      operario_id: operarioId,
-      vetor_facial: vetorFacial,
-      qualidade_amostra: qualidadeAmostra,
-    });
-    return response.data;
+    try {
+      const response = await api.post('/api/biometria/cadastrar/', {
+        operario_id: operarioId,
+        vetor_facial: vetorFacial,
+        qualidade_amostra: qualidadeAmostra,
+      });
+      return response.data;
+    } catch (error) {
+      const data = error?.response?.data;
+      const detailValue = data?.detail || data?.message || (Array.isArray(data) ? data[0] : null);
+      const detail = Array.isArray(detailValue) ? detailValue[0] : detailValue;
+      const validation = Object.entries(data || {}).find(([, value]) => Array.isArray(value) && value.length);
+      const validationMessage = validation ? (Array.isArray(validation[1][0]) ? validation[1][0][0] : validation[1][0]) : null;
+      const message = detail || validationMessage || null;
+      const normalized = new Error(message || 'Não foi possível cadastrar a biometria.');
+      normalized.status = error?.response?.status;
+      normalized.codigo = data?.codigo;
+      throw normalized;
+    }
   },
 
   /**

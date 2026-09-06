@@ -43,9 +43,14 @@ class CadastrarBiometriaSerializer(serializers.Serializer):
 
         if qualidade_amostra < BiometriaFacial.LIMIAR_QUALIDADE_MINIMA:
             # Alternativa do SQ02: qualidade insuficiente (luz/EPI) -> pedir nova captura.
-            raise serializers.ValidationError(
-                "Qualidade da amostra insuficiente. Ajuste a iluminação/EPI e capture novamente."
-            )
+            raise serializers.ValidationError({
+                "codigo": "QUALIDADE_INSUFICIENTE",
+                "detail": (
+                    f"Qualidade da amostra insuficiente ({qualidade_amostra:.2f}; "
+                    f"mínimo {BiometriaFacial.LIMIAR_QUALIDADE_MINIMA:.2f}). "
+                    "Ajuste a iluminação, mantenha o celular firme e capture novamente."
+                ),
+            })
 
         resultado = get_servico_facial().registrar_vetor(validated_data["vetor_facial"], qualidade_amostra)
 
