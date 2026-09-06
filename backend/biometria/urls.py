@@ -6,4 +6,5 @@ app_name = "biometria"
 
 urlpatterns = [
     path("cadastrar/", views.CadastrarBiometriaView.as_view(), name="cadastrar_biometria"),
+    path("minha/", views.MinhaBiometriaEmbeddingView.as_view(), name="minha_biometria"),
 ]
