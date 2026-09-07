@@ -25,7 +25,15 @@ class BiometriaFacial(models.Model):
     qualidade_amostra = models.FloatField()
     capturado_em = models.DateTimeField(auto_now_add=True)
 
-    LIMIAR_QUALIDADE_MINIMA = 0.80
+    # Reduzido de 0.80 -> 0.70 como margem: a pontuação de qualidade é uma
+    # heurística aproximada calculada no aparelho (enquadramento, nitidez,
+    # simetria, brilho -- ver `estimarQualidade` em
+    # frontend/src/services/faceVectorService.js), não uma medida exata, e
+    # ainda precisa de calibração com mais testes reais em aparelhos
+    # variados. Reavaliar este número (pra cima ou pra baixo) depois de
+    # testar em mais dispositivos -- ver conversa/relato do time sobre
+    # cadastros travando perto de 0.70 mesmo com fotos boas.
+    LIMIAR_QUALIDADE_MINIMA = 0.70
 
     class Meta:
         db_table = "biometrias_faciais"
