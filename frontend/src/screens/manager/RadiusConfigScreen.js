@@ -124,7 +124,7 @@ export default function RadiusConfigScreen({ navigation, route }) {
             <Text style={styles.sliderValue}>{Math.round(radius)} m</Text>
             <Slider
               style={{ width: "100%", height: 40 }}
-              minimumValue={10}
+              minimumValue={5}
               maximumValue={300}
               value={radius}
               onValueChange={setRadius}
@@ -133,7 +133,7 @@ export default function RadiusConfigScreen({ navigation, route }) {
               thumbTintColor={COLORS.primary}
             />
             <View style={styles.sliderRange}>
-              <Text style={styles.sliderRangeText}>10 m</Text>
+              <Text style={styles.sliderRangeText}>5 m</Text>
               <Text style={styles.sliderRangeText}>300 m</Text>
             </View>
             <Text style={styles.helperText}>

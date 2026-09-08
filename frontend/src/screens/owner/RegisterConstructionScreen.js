@@ -4,6 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING } from "../../theme/theme";
 import { ownerService } from "../../services/ownerService";
+import ChoiceModal from "../../components/ChoiceModal";
+import { TIPOS_GERENTE, labelDoTipoGerente } from "../../data/tiposGerente";
 import { geoService } from "../../services/geoService";
 
 export default function RegisterConstructionScreen({ navigation }) {
@@ -15,6 +17,9 @@ export default function RegisterConstructionScreen({ navigation }) {
   const [locating, setLocating] = useState(false);
 
   const [especialidade, setEspecialidade] = useState("");
+  const [tipoGerente, setTipoGerente] = useState("");
+  const [especialidadeModalVisible, setEspecialidadeModalVisible] = useState(false);
+  const [tipoGerenteModalVisible, setTipoGerenteModalVisible] = useState(false);
   const [gerenteNome, setGerenteNome] = useState("");
   const [gerenteCpf, setGerenteCpf] = useState("");
   const [email, setEmail] = useState("");
@@ -64,6 +69,7 @@ export default function RegisterConstructionScreen({ navigation }) {
 
       await ownerService.vincularGerenteNovo(obra.id, {
         especialidade: especialidade.trim(),
+        tipoGerente: tipoGerente.trim(),
         nomeCompleto: gerenteNome.trim(),
         cpf: gerenteCpf.trim(),
         email: email.trim(),
@@ -166,14 +172,36 @@ export default function RegisterConstructionScreen({ navigation }) {
 
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Especialidade</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Ex.: Civil, Elétrica, Hidráulica"
-            placeholderTextColor={COLORS.placeholder}
-            value={especialidade}
-            onChangeText={setEspecialidade}
-          />
+          <TouchableOpacity style={styles.input} onPress={() => setEspecialidadeModalVisible(true)}>
+            <Text style={especialidade ? styles.selectValue : styles.selectPlaceholder}>
+              {especialidade ? labelDoTipoGerente(especialidade) : "Selecione a especialidade"}
+            </Text>
+          </TouchableOpacity>
         </View>
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Tipo de gerente</Text>
+          <TouchableOpacity style={styles.input} onPress={() => setTipoGerenteModalVisible(true)}>
+            <Text style={tipoGerente ? styles.selectValue : styles.selectPlaceholder}>
+              {tipoGerente ? labelDoTipoGerente(tipoGerente) : "Selecione o tipo de gerente (opcional)"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <ChoiceModal
+          visible={especialidadeModalVisible}
+          title="Especialidade"
+          options={TIPOS_GERENTE}
+          selectedValue={especialidade}
+          onSelect={setEspecialidade}
+          onClose={() => setEspecialidadeModalVisible(false)}
+        />
+        <ChoiceModal
+          visible={tipoGerenteModalVisible}
+          title="Tipo de gerente"
+          options={TIPOS_GERENTE}
+          selectedValue={tipoGerente}
+          onSelect={setTipoGerente}
+          onClose={() => setTipoGerenteModalVisible(false)}
+        />
 
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>Nome completo</Text>
@@ -270,6 +298,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textDark,
   },
+  selectValue: { fontSize: 13, color: COLORS.textDark },
+  selectPlaceholder: { fontSize: 13, color: COLORS.placeholder },
   locationBtn: {
     flexDirection: "row",
     alignItems: "center",

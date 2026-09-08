@@ -6,12 +6,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { COLORS, RADIUS, SPACING, SHADOW } from "../../theme/theme";
 import { ownerService } from "../../services/ownerService";
 import authService from "../../services/authService";
+import clockService from "../../services/clockService";
 
 export default function OwnerDashboardScreen({ navigation }) {
   const [nome, setNome] = useState("Dono");
   const [obras, setObras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const loadData = useCallback(async () => {
     try {
@@ -32,7 +34,9 @@ export default function OwnerDashboardScreen({ navigation }) {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", loadData);
-    return unsubscribe;
+    clockService.sync().then(setCurrentTime).catch(() => setCurrentTime(clockService.now()));
+    const timer = setInterval(() => setCurrentTime(clockService.now()), 1000);
+    return () => { unsubscribe(); clearInterval(timer); };
   }, [navigation, loadData]);
 
   const activeWorks = obras.filter((o) => o.status === "ATIVA").length;
@@ -50,6 +54,7 @@ export default function OwnerDashboardScreen({ navigation }) {
         <View style={{ flex: 1, marginLeft: SPACING.sm }}>
           <Text style={styles.welcomeText}>Bem-vindo,</Text>
           <Text style={styles.userName}>{nome}</Text>
+                  <Text style={styles.clock}>{currentTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</Text>
         </View>
         <TouchableOpacity style={styles.headerIcon}>
           <Ionicons name="notifications-outline" size={18} color={COLORS.textOnPrimary} />
@@ -164,6 +169,7 @@ const styles = StyleSheet.create({
   },
   welcomeText: { color: COLORS.textOnPrimaryMuted, fontSize: 12 },
   userName: { color: COLORS.textOnPrimary, fontSize: 15, fontWeight: "700" },
+  clock: { color: COLORS.textOnPrimaryMuted, fontSize: 12, marginTop: 2 },
   headerIcon: {
     width: 32,
     height: 32,
