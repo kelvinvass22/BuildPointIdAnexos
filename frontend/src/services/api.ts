@@ -1,5 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { resetToAuth } from '../navigation/navigationRef';
 
 // Chaves usadas em todo o app para persistir a sessão localmente.
 // Centralizadas aqui para não existir divergência entre quem grava (authService)
@@ -53,9 +54,10 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error?.config;
+    const requestUrl = typeof originalRequest?.url === 'string' ? originalRequest.url : '';
     const isAuthEndpoint =
-      originalRequest?.url?.includes('/api/auth/login/') ||
-      originalRequest?.url?.includes('/api/auth/refresh/');
+      requestUrl.includes('/api/auth/login/') ||
+      requestUrl.includes('/api/auth/refresh/');
 
     if (error?.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
@@ -93,6 +95,11 @@ api.interceptors.response.use(
           STORAGE_KEYS.USUARIO_ID,
           STORAGE_KEYS.NOME,
         ]);
+        // Sessão persistida (login em cache -- ver App.js) expirou/foi
+        // revogada e nem o refresh salvou: força a volta pra tela de
+        // Login em vez de deixar a pessoa presa numa tela autenticada que
+        // vai continuar dando 401 em tudo.
+        resetToAuth();
         return Promise.reject(error);
       } finally {
         isRefreshing = false;
