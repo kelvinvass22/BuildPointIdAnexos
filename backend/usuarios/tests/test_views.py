@@ -141,7 +141,7 @@ class CadastrarOperarioViewTestCase(APITestCase):
             latitude_centro=-3.7319,
             longitude_centro=-38.5267
         )
-        VinculoGerente.objects.create(obra=self.obra, gerente=self.gerente, especialidade="Geral")
+        VinculoGerente.objects.create(obra=self.obra, gerente=self.gerente, especialidade="GERAL")
 
         self.payload = {
             "nome_completo": "João Operário",
@@ -191,7 +191,7 @@ class ListarOperariosViewTestCase(APITestCase):
             latitude_centro=-3.7319,
             longitude_centro=-38.5267
         )
-        VinculoGerente.objects.create(obra=self.obra, gerente=self.gerente, especialidade="Geral")
+        VinculoGerente.objects.create(obra=self.obra, gerente=self.gerente, especialidade="GERAL")
 
         self.operario_user = Usuario.objects.create_user(
             username="55555555555", cpf="55555555555", password="123", papel=Papel.OPERARIO

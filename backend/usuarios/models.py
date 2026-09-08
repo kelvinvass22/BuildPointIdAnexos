@@ -23,6 +23,12 @@ class Papel(models.TextChoices):
     DONO = "DONO", "Dono"
     GERENTE = "GERENTE", "Gerente"
     OPERARIO = "OPERARIO", "Operário"
+    # Papel de suporte técnico -- NÃO tem tela no app (ver LoginSerializer,
+    # que recusa login mobile pra essa conta). Existe só pra dar um valor
+    # válido de `papel` (campo obrigatório) a um superusuário criado via
+    # `python manage.py createsuperuser`, que usa exclusivamente o painel
+    # /admin/ do Django (já com todos os models registrados em admin.py).
+    ADMIN = "ADMIN", "Administrador"
 
 
 class Usuario(AbstractUser):
@@ -83,12 +89,41 @@ class PerfilDono(models.Model):
         return "perfil_dono"
 
 
+class TipoGerente(models.TextChoices):
+    """
+    Catálogo fixo de especialidades de gerente (substitui o antigo texto
+    livre) -- funciona como uma "sub-role" dentro do papel GERENTE: define
+    o que aquele gerente supervisiona, tanto no perfil (`PerfilGerente.
+    tipo_gerente`, especialidade "padrão" da pessoa) quanto por obra
+    (`obras.models.VinculoGerente.especialidade` -- o mesmo gerente pode
+    ter especialidades diferentes em obras diferentes).
+    """
+    OBRA = "OBRA", "Gerente de Obra"
+    CIVIL_ESTRUTURAL = "CIVIL_ESTRUTURAL", "Gerente Civil/Estrutural"
+    ELETRICA = "ELETRICA", "Gerente Elétrico"
+    HIDRAULICA = "HIDRAULICA", "Gerente Hidráulico/Sanitário"
+    SEGURANCA_TRABALHO = "SEGURANCA_TRABALHO", "Gerente de Segurança do Trabalho"
+    QUALIDADE = "QUALIDADE", "Gerente de Qualidade"
+    PLANEJAMENTO = "PLANEJAMENTO", "Gerente de Planejamento e Controle"
+    SUPRIMENTOS = "SUPRIMENTOS", "Gerente de Suprimentos/Compras"
+    MANUTENCAO = "MANUTENCAO", "Gerente de Manutenção/Equipamentos"
+    AMBIENTAL = "AMBIENTAL", "Gerente Ambiental"
+    FINANCEIRO = "FINANCEIRO", "Gerente Financeiro"
+    RECURSOS_HUMANOS = "RECURSOS_HUMANOS", "Gerente de Recursos Humanos"
+    COMERCIAL = "COMERCIAL", "Gerente Comercial"
+    GERAL = "GERAL", "Gerente Geral"
+    OUTRO = "OUTRO", "Outro"
+
+
 class PerfilGerente(models.Model):
     usuario = models.OneToOneField(
         Usuario, on_delete=models.CASCADE, related_name="perfil_gerente", primary_key=True
     )
     telefone = models.CharField(max_length=20, blank=True)
-    tipo_gerente = models.CharField(max_length=80, blank=True)
+    tipo_gerente = models.CharField(
+        max_length=40, choices=TipoGerente.choices, blank=True,
+        help_text="Especialidade padrão do gerente (pode variar por obra -- ver VinculoGerente.especialidade).",
+    )
 
     class Meta:
         db_table = "perfis_gerente"

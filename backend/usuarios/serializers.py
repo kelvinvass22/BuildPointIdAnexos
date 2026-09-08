@@ -23,6 +23,13 @@ class LoginSerializer(TokenObtainPairSerializer):
         if not autenticado or not autenticado.ativo:
             raise serializers.ValidationError("CPF/CNPJ ou senha inválidos.")
 
+        if autenticado.papel == "ADMIN":
+            # Conta de suporte técnico -- usa só o painel /admin/ do Django,
+            # não o aplicativo. Não emite token JWT pra ela.
+            raise serializers.ValidationError(
+                "Contas de administrador usam o painel administrativo, não o aplicativo."
+            )
+
         refresh = self.get_token(autenticado)
         return {
             "refresh": str(refresh),
