@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   FlatList,
   Alert,
-  Platform,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, Feather } from "@expo/vector-icons";
@@ -18,6 +18,10 @@ import geoService from "../services/geoService";
 import faceVectorService from "../services/faceVectorService";
 import workerService from "../services/workerService";
 import managerService from "../services/managerService";
+import deviceService from "../services/deviceService";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const OVERLAY_WIDTH = Math.min(SCREEN_WIDTH * 0.65, 260);
 
 const TIPOS = [
   { value: "ENTRADA", label: "Entrada" },
@@ -27,20 +31,7 @@ const TIPOS = [
 ];
 
 /**
- * Fluxo de câmera unificado, usado em três contextos (prop `mode`):
- *  - "checkin"      : Operário bate o próprio ponto -> extrai o vetor facial
- *                      no dispositivo e chama POST /api/marcacoes/.
- *  - "enroll"       : Gerente cadastra a biometria de um Operário -> extrai
- *                      o vetor e chama POST /api/biometria/cadastrar/.
- *  - "contingencia" : Gerente bate o ponto por um Operário cuja face falhou
- *                      (ou sem app) -> sem vetor facial, só confirma a
- *                      identidade no local via POST /api/marcacoes/contingencia/.
- *
- * Props:
- *  - obraId  : uuid da obra (obrigatório em "checkin" e "contingencia")
- *  - operario: { id, nome_completo } já selecionado (obrigatório em "enroll";
- *               opcional em "contingencia" -- se ausente, mostra busca)
- *  - onDone(result): chamado com a resposta da API quando o fluxo é concluído
+ * Fluxo de câmera unificado (Check-in, Cadastro de Biometria e Contingência)
  */
 export default function FaceCheckInFlow({
   navigation,
@@ -60,25 +51,27 @@ export default function FaceCheckInFlow({
   const [loadingOperarios, setLoadingOperarios] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [offlineMessage, setOfflineMessage] = useState(null);
   const [cameraRef, setCameraRef] = useState(null);
+
+  const loadOperarios = useCallback(async () => {
+    try {
+      setLoadingOperarios(true);
+      const { results } = await managerService.listOperarios();
+      setOperariosList(results || []);
+    } catch (err) {
+      console.error("Erro ao buscar operários:", err);
+      Alert.alert("Erro", "Não foi possível carregar a lista de operários.");
+    } finally {
+      setLoadingOperarios(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (step === "search") {
       loadOperarios();
     }
-  }, [step]);
-
-  const loadOperarios = async () => {
-    try {
-      setLoadingOperarios(true);
-      const { results } = await managerService.listOperarios();
-      setOperariosList(results);
-    } catch (err) {
-      console.error("Erro ao buscar operários:", err);
-    } finally {
-      setLoadingOperarios(false);
-    }
-  };
+  }, [step, loadOperarios]);
 
   const filteredOperarios = useMemo(() => {
     if (!search.trim()) return operariosList;
@@ -109,22 +102,31 @@ export default function FaceCheckInFlow({
     setStep("intro");
   };
 
+  const formatQualidadeDetalhe = (detalhe) => {
+    if (!detalhe) return "";
+    return ` (tamanho: ${detalhe.tamanho}, nitidez: ${detalhe.nitidez}, simetria: ${detalhe.simetria}, brilho: ${detalhe.brilho})`;
+  };
+
   const handleCapture = async () => {
     if (submitting) return;
+    let qualidadeDetalheCapturada = null;
     try {
       setSubmitting(true);
       setErrorMessage(null);
+      setOfflineMessage(null);
 
       if (mode === "contingencia") {
-        // Sem vetor facial: só GPS + confirmação visual do gerente no local.
+        setStep("processing");
         const position = await geoService.getCurrentPosition();
+        const dispositivoId = await deviceService.getDispositivoId();
         const result = await managerService.registrarContingencia({
-          operarioId: selectedOperario.id,
+          operarioId: selectedOperario?.id,
           obraId,
           latitude: position.latitude,
           longitude: position.longitude,
           precisaoGpsMetros: position.precisao_gps_metros,
           tipo,
+          dispositivoId,
         });
         setStep("success");
         onDone?.(result);
@@ -139,12 +141,19 @@ export default function FaceCheckInFlow({
           console.warn("Não foi possível capturar a foto, seguindo com vetor mesmo assim:", photoErr);
         }
       }
-      const { vetor_facial, qualidade_amostra } = await faceVectorService.extractFromPhoto(photo || {});
+
+      // A partir daqui não precisa mais da câmera ao vivo -- a foto já foi
+      // capturada. Troca pra uma tela dedicada de "verificando" em vez de
+      // deixar a prévia da câmera parada na tela com só um spinner no botão.
+      setStep("processing");
+
+      const { vetor_facial, qualidade_amostra, qualidade_detalhe } = await faceVectorService.extractFromPhoto(photo || {});
+      qualidadeDetalheCapturada = qualidade_detalhe;
 
       let result;
       if (mode === "enroll") {
         result = await managerService.cadastrarBiometria({
-          operarioId: selectedOperario.id,
+          operarioId: selectedOperario?.id,
           vetorFacial: vetor_facial,
           qualidadeAmostra: qualidade_amostra,
         });
@@ -157,15 +166,24 @@ export default function FaceCheckInFlow({
           precisaoGpsMetros: position.precisao_gps_metros,
           tipo,
           vetorFacial: vetor_facial,
-          sistemaOperacional: `${Platform.OS} ${Platform.Version}`,
+          dispositivoId: await deviceService.getDispositivoId(),
+          sistemaOperacional: deviceService.getSistemaOperacional(),
         });
       }
 
       setStep("success");
+      if (result?.offline) setOfflineMessage(result.message);
       onDone?.(result);
     } catch (err) {
       console.error("Erro no fluxo de câmera:", err);
-      setErrorMessage(err?.message || "Não foi possível concluir. Tente novamente.");
+      // Detalhamento da pontuação de qualidade (tamanho/nitidez/simetria/brilho) --
+      // só um diagnóstico temporário enquanto calibramos a heurística com
+      // testes reais; ajuda a identificar qual sub-métrica está baixa sem
+      // precisar de ferramenta extra (ex.: "não passa de 0.70" vira visível
+      // exatamente qual pedaço da conta está puxando a média pra baixo).
+      const detalhe = qualidadeDetalheCapturada || err?.qualidadeDetalhe;
+      const sufixoDetalhe = err?.codigo === "QUALIDADE_INSUFICIENTE" || err?.message?.includes("ualidade") ? formatQualidadeDetalhe(detalhe) : "";
+      setErrorMessage((err?.message || "Não foi possível concluir. Tente novamente.") + sufixoDetalhe);
       setStep("error");
     } finally {
       setSubmitting(false);
@@ -174,6 +192,26 @@ export default function FaceCheckInFlow({
 
   const headerTitle =
     mode === "enroll" ? "Cadastro de Biometria" : mode === "contingencia" ? "Registro da Equipe" : "Registro de Ponto";
+
+  const handleBack = () => {
+    // RF05: um cadastro de operário só deve "contar" como concluído com
+    // dados + biometria -- sair no meio da captura da biometria deixa o
+    // operário criado mas sem rosto cadastrado (ele não consegue bater
+    // ponto até alguém voltar aqui e terminar). Avisa antes de deixar
+    // sair, em vez de permitir abandonar silenciosamente.
+    if (mode === "enroll" && step !== "success") {
+      Alert.alert(
+        "Cadastro incompleto",
+        `${selectedOperario?.nome_completo || "O operário"} foi cadastrado, mas ainda sem biometria facial -- ele não vai conseguir bater ponto até isso ser concluído. Sair mesmo assim?`,
+        [
+          { text: "Continuar cadastro", style: "cancel" },
+          { text: "Sair mesmo assim", style: "destructive", onPress: () => navigation.goBack() },
+        ]
+      );
+      return;
+    }
+    navigation.goBack();
+  };
 
   const introTitle = mode === "enroll" ? "Cadastro Facial do Operário" : "Reconhecimento Facial";
   const introText =
@@ -186,7 +224,7 @@ export default function FaceCheckInFlow({
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={handleBack}>
           <Ionicons name="chevron-back" size={22} color={COLORS.textDark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{headerTitle}</Text>
@@ -290,7 +328,9 @@ export default function FaceCheckInFlow({
                 <Text style={styles.cameraFallbackText}>Permita o acesso à câmera</Text>
               </View>
             )}
-            <View style={styles.faceOverlay} pointerEvents="none" />
+            <View style={styles.faceOverlayContainer} pointerEvents="none">
+              <View style={styles.faceOverlay} />
+            </View>
           </View>
 
           <Text style={styles.cameraHint}>
@@ -309,6 +349,24 @@ export default function FaceCheckInFlow({
         </View>
       )}
 
+      {step === "processing" && (
+        <View style={styles.introBody}>
+          <View style={{ flex: 1 }} />
+          <View style={styles.processingWrap}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.processingTitle}>Verificando...</Text>
+            <Text style={styles.processingText}>
+              {mode === "enroll"
+                ? "Processando o rosto capturado e cadastrando a biometria."
+                : mode === "contingencia"
+                ? "Registrando a marcação em contingência."
+                : "Confirmando sua identidade e registrando o ponto."}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }} />
+        </View>
+      )}
+
       {step === "success" && (
         <View style={styles.introBody}>
           <View style={styles.successIconWrap}>
@@ -316,7 +374,9 @@ export default function FaceCheckInFlow({
           </View>
           <Text style={styles.introTitle}>Tudo certo</Text>
           <Text style={styles.introText}>
-            {mode === "enroll"
+            {offlineMessage
+              ? offlineMessage
+              : mode === "enroll"
               ? "A biometria do operário foi cadastrada com sucesso."
               : "O registro do ponto foi realizado com sucesso, consulte o histórico para visualizar o comprovante."}
           </Text>
@@ -338,7 +398,7 @@ export default function FaceCheckInFlow({
           <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep("camera")}>
             <Text style={styles.primaryBtnText}>Tentar novamente</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={{ marginTop: SPACING.sm, alignItems: "center" }} onPress={() => navigation.goBack()}>
+          <TouchableOpacity style={{ marginTop: SPACING.sm, alignItems: "center" }} onPress={handleBack}>
             <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>Cancelar</Text>
           </TouchableOpacity>
         </View>
@@ -429,6 +489,10 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
 
+  processingWrap: { alignItems: "center", paddingHorizontal: SPACING.lg },
+  processingTitle: { fontSize: 18, fontWeight: "700", color: COLORS.textDark, marginTop: SPACING.md },
+  processingText: { fontSize: 13, color: COLORS.textMuted, textAlign: "center", marginTop: SPACING.sm, lineHeight: 20 },
+
   cameraBody: { flex: 1, paddingHorizontal: SPACING.md },
   cameraTopBar: {
     backgroundColor: COLORS.primary,
@@ -450,17 +514,21 @@ const styles = StyleSheet.create({
   camera: { flex: 1, width: "100%" },
   cameraFallback: { alignItems: "center", justifyContent: "center" },
   cameraFallbackText: { color: "#fff", marginTop: SPACING.sm, fontSize: 12 },
+
+  faceOverlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   faceOverlay: {
-    position: "absolute",
-    top: "18%",
-    left: "22%",
-    right: "22%",
-    bottom: "28%",
-    borderRadius: 999,
+    width: OVERLAY_WIDTH,
+    height: OVERLAY_WIDTH * 1.35,
+    borderRadius: (OVERLAY_WIDTH * 1.35) / 2,
     borderWidth: 2,
-    borderColor: "#fff",
+    borderColor: "#ffffff",
     borderStyle: "dashed",
   },
+
   cameraHint: { textAlign: "center", color: COLORS.textMuted, fontSize: 12, marginVertical: SPACING.sm },
   registerBtn: {
     backgroundColor: COLORS.primary,

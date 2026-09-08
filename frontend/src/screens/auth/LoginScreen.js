@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING } from "../../theme/theme";
 import authService, { ROLE_TO_STACK } from "../../services/authService";
+import workerService from "../../services/workerService";
 
 // Fallback caso a resposta do backend não traga "papel" por algum motivo:
 // usa o perfil que a pessoa escolheu na tela anterior (ProfileSelectScreen).
@@ -40,6 +41,16 @@ export default function LoginScreen({ navigation, route }) {
       // pessoa escolheu na tela anterior -- é o backend quem manda na
       // autorização. Se por algum motivo não vier, cai no perfil escolhido.
       const targetStack = ROLE_TO_STACK[data.papel] || ROLE_ROUTES[role];
+
+      // Baixa (best-effort) o embedding facial autorizado do operário pra
+      // cache offline -- não bloqueia o login nem mostra erro se falhar
+      // (ex.: ainda sem biometria cadastrada); só fica indisponível a
+      // validação facial OFFLINE até o próximo login/sincronização com êxito.
+      if (data.papel === "OPERARIO") {
+        workerService.baixarBiometriaParaOffline().catch((err) => {
+          console.warn("Não foi possível baixar biometria para uso offline:", err?.message || err);
+        });
+      }
 
       navigation.reset({
         index: 0,

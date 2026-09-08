@@ -1,5 +1,6 @@
 import api, { STORAGE_KEYS } from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import secureBiometryStore from './secureBiometryStore';
 
 export class AuthError extends Error {
   status?: number;
@@ -73,7 +74,10 @@ export const authService = {
   },
 
   /**
-   * Remove dados de autenticação locais ao deslogar.
+   * Remove dados de autenticação locais ao deslogar. Também limpa o cache
+   * de biometria offline (secureBiometryStore) -- o embedding autorizado
+   * de quem estava logado não deve continuar acessível no aparelho depois
+   * que a sessão encerra.
    */
   async logout(): Promise<void> {
     await AsyncStorage.multiRemove([
@@ -83,6 +87,9 @@ export const authService = {
       STORAGE_KEYS.USUARIO_ID,
       STORAGE_KEYS.NOME,
     ]);
+    await secureBiometryStore.limpar().catch((err) => {
+      console.warn('Não foi possível limpar o cache de biometria offline no logout:', err);
+    });
   },
 
   /**

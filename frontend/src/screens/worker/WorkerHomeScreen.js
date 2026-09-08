@@ -5,11 +5,13 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING, SHADOW } from "../../theme/theme";
 import { workerService } from "../../services/workerService";
 import authService from "../../services/authService";
+import clockService from "../../services/clockService";
 
 export default function WorkerHomeScreen({ navigation }) {
   const [worker, setWorker] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const loadHomeStatus = async () => {
     try {
@@ -43,6 +45,15 @@ export default function WorkerHomeScreen({ navigation }) {
 
   useEffect(() => {
     loadHomeStatus();
+    clockService.sync().then(setCurrentTime).catch(() => setCurrentTime(clockService.now()));
+    workerService.sincronizarMarcacoesPendentes().catch((syncError) => {
+      console.warn("Não foi possível sincronizar marcações pendentes:", syncError);
+    });
+    // Mantém o cache de biometria offline em dia sempre que houver internet
+    // (ex.: depois de um recadastro facial feito pelo gerente).
+    workerService.baixarBiometriaParaOffline().catch(() => {});
+    const timer = setInterval(() => setCurrentTime(clockService.now()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   if (loading) {
@@ -85,8 +96,8 @@ export default function WorkerHomeScreen({ navigation }) {
       </View>
 
       <View style={styles.center}>
-        <Text style={styles.clock}>{worker.time}</Text>
-        <Text style={styles.dateLabel}>{worker.dateLabel}</Text>
+        <Text style={styles.clock}>{currentTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</Text>
+        <Text style={styles.dateLabel}>{currentTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}</Text>
 
         <TouchableOpacity
           style={styles.bigButton}

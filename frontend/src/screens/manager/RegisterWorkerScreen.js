@@ -15,6 +15,8 @@ export default function RegisterWorkerScreen({ navigation, route }) {
   const [email, setEmail] = useState("");
   const [endereco, setEndereco] = useState("");
   const [cargo, setCargo] = useState("Pedreiro");
+  const [tipoVinculo, setTipoVinculo] = useState("PROPRIO");
+  const [empresaTerceirizada, setEmpresaTerceirizada] = useState("");
   const [dataAdmissao, setDataAdmissao] = useState(""); // dd/mm/aaaa (convertido antes de enviar)
   const [senhaInicial, setSenhaInicial] = useState("");
   const [saving, setSaving] = useState(false);
@@ -51,6 +53,8 @@ export default function RegisterWorkerScreen({ navigation, route }) {
         cpf: cpf.trim(),
         email: email.trim() || undefined,
         cargo: cargo || undefined,
+        tipoVinculo,
+        empresaTerceirizada: empresaTerceirizada.trim() || undefined,
         endereco: endereco.trim() || undefined,
         dataAdmissao: dataAdmissaoISO || undefined,
         senhaInicial: senhaInicial.trim(),
@@ -105,6 +109,27 @@ export default function RegisterWorkerScreen({ navigation, route }) {
             onChangeText={setNomeCompleto}
           />
         </View>
+
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Vínculo profissional</Text>
+          <TouchableOpacity
+            style={styles.selectInput}
+            onPress={() => Alert.alert("Selecionar vínculo", "", [
+              { text: "Próprio", onPress: () => setTipoVinculo("PROPRIO") },
+              { text: "Terceirizado", onPress: () => setTipoVinculo("TERCEIRIZADO") },
+            ])}
+          >
+            <Text style={styles.selectPlaceholder}>{tipoVinculo === "TERCEIRIZADO" ? "Terceirizado" : "Próprio"}</Text>
+            <Ionicons name="chevron-down" size={16} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {tipoVinculo === "TERCEIRIZADO" && (
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Empresa terceirizada</Text>
+            <TextInput style={styles.input} placeholder="Nome da empresa" placeholderTextColor={COLORS.placeholder} value={empresaTerceirizada} onChangeText={setEmpresaTerceirizada} />
+          </View>
+        )}
 
         <View style={styles.field}>
           <Text style={styles.fieldLabel}>CPF</Text>
