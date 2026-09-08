@@ -139,13 +139,27 @@ def registrar_ponto(
             "Centralize o rosto, retire obstáculos e tente novamente."
         )
 
+    # Autoridade sobre o horário: numa marcação ONLINE, o app está falando
+    # com o servidor NESTE INSTANTE -- não existe motivo legítimo pra usar
+    # outro horário além do do servidor, então qualquer `data_hora` vindo
+    # do cliente é ignorada (RNF: horário oficial é sempre o do backend --
+    # evita que o relógio do aparelho, errado por engano ou de propósito,
+    # vire o horário oficial do ponto).
+    # Só na sincronização de uma marcação que foi feita OFFLINE é que
+    # `data_hora` do cliente é aceita: é o horário que o operário tentou
+    # bater o ponto, capturado no aparelho no momento da tentativa -- sem
+    # internet naquele momento, não existe outro horário confiável
+    # possível, e descartá-lo geraria um horário de trabalho incorreto
+    # (a marcação ficaria com o horário da sincronização, não da batida).
+    data_hora_final = data_hora if (offline and data_hora) else timezone.now()
+
     logger.info("Persistindo marcação: operario=%s obra=%s", operario.pk, obra.pk)
     return _persistir_marcacao(
         operario=operario, obra=obra, latitude=latitude, longitude=longitude,
         precisao_gps_metros=precisao_gps_metros, confianca_face=resultado.confianca,
         tipo=tipo, origem=OrigemMarcacao.SYNC_OFFLINE if offline else OrigemMarcacao.APP_OPERARIO,
         dispositivo_id=dispositivo_id, sistema_operacional=sistema_operacional,
-        registrado_por=registrado_por or operario.usuario, data_hora=data_hora or timezone.now(),
+        registrado_por=registrado_por or operario.usuario, data_hora=data_hora_final,
     )
 
 
