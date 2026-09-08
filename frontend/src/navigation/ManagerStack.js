@@ -5,6 +5,8 @@ import RadiusConfigScreen from "../screens/manager/RadiusConfigScreen";
 import RegisterWorkerScreen from "../screens/manager/RegisterWorkerScreen";
 import ManagerCameraScreen from "../screens/manager/ManagerCameraScreen";
 import EnrollBiometryScreen from "../screens/manager/EnrollBiometryScreen";
+import TeamsScreen from "../screens/manager/TeamsScreen";
+import EditWorkerScreen from "../screens/manager/EditWorkerScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -16,6 +18,8 @@ export default function ManagerStack() {
       <Stack.Screen name="RegisterWorker" component={RegisterWorkerScreen} />
       <Stack.Screen name="ManagerCamera" component={ManagerCameraScreen} />
       <Stack.Screen name="EnrollBiometry" component={EnrollBiometryScreen} />
+      <Stack.Screen name="Teams" component={TeamsScreen} />
+      <Stack.Screen name="EditWorker" component={EditWorkerScreen} />
     </Stack.Navigator>
   );
 }

@@ -88,6 +88,10 @@ export const managerService = {
         role: op.cargo || 'Operário',
         time,
         status: marcacao ? 'Verificado' : 'Sem registro hoje',
+        // RF05: cadastro só "conta" como completo com dados + biometria --
+        // a Home do Gerente usa isso pra sinalizar quem ainda falta
+        // terminar (ver `possui_biometria_ativa` em PerfilOperario).
+        possuiBiometria: !!op.possui_biometria_ativa,
       };
     });
   },
@@ -109,6 +113,25 @@ export const managerService = {
       ...(dataAdmissao ? { data_admissao: dataAdmissao } : {}),
       senha_inicial: senhaInicial,
       obra_id: obraId,
+    });
+    return response.data;
+  },
+
+  /**
+   * Corrige os dados cadastrais de um operário já existente (CPF e senha
+   * não são editáveis por aqui -- ver AtualizarOperarioSerializer no
+   * backend).
+   * Rota: PATCH /api/usuarios/operarios/{id}/atualizar/
+   */
+  async atualizarOperario(operarioId, { nomeCompleto, email, cargo, tipoVinculo, empresaTerceirizada, endereco, dataAdmissao }) {
+    const response = await api.patch(`/api/usuarios/operarios/${operarioId}/atualizar/`, {
+      ...(nomeCompleto ? { nome_completo: nomeCompleto } : {}),
+      ...(email !== undefined ? { email } : {}),
+      ...(cargo !== undefined ? { cargo } : {}),
+      ...(tipoVinculo ? { tipo_vinculo: tipoVinculo } : {}),
+      ...(empresaTerceirizada !== undefined ? { empresa_terceirizada: empresaTerceirizada } : {}),
+      ...(endereco !== undefined ? { endereco } : {}),
+      ...(dataAdmissao !== undefined ? { data_admissao: dataAdmissao } : {}),
     });
     return response.data;
   },
