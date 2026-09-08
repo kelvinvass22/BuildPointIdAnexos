@@ -1,153 +1,107 @@
-# BuildPoint ID — Backend (Django + DRF)
+# BuildPoint ID — Backend (Django REST Framework)
 
-Backend do BuildPoint ID reescrito em Django, implementando o que foi
-modelado na Etapa 3 (classes, casos de uso, sequência). Deploy pensado
-para o **Render**; integrações externas (Face ID, geolocalização,
-assinatura digital) entram por variável de ambiente.
+API central do BuildPoint ID: autenticação, cadastro de obras/operários/gerentes, biometria facial cifrada, registro de ponto (com contingência) e relatórios. Fonte de verdade para tudo — inclusive quando o app registra um ponto offline, é este backend quem revalida a identidade antes de gravar qualquer coisa como definitivo.
 
-## Estrutura
+> Reescrita deste README nesta revisão: a versão anterior tinha uma seção "Atualização — feedback do professor" descrevendo bugs já corrigidos (Geoapify, Rekognition comentado, migrations pendentes). Esses itens foram resolvidos há tempo; o texto abaixo descreve o estado atual, não o histórico de correções.
 
-Um app Django por área do Diagrama de Classes — é a forma mais direta de
-manter rastreabilidade entre a modelagem da Etapa 3 e o código:
+## Stack
 
-```
-buildpoint-backend/
-├── manage.py
-├── requirements.txt
-├── .env.example              # todas as variáveis de ambiente esperadas
-├── .gitignore
-├── render.yaml                # blueprint de deploy do Render
-├── README.md
-│
-├── core/                    # projeto Django (settings, urls raiz)
-│   ├── settings.py
-│   ├── urls.py
-│   ├── wsgi.py
-│   └── asgi.py
-│
-├── usuarios/                  # Usuario, PerfilDono, PerfilGerente, PerfilOperario
-│   ├── models.py               # RBAC (RS01) + polimorfismo (get_perfil/tela_inicial)
-│   ├── serializers.py          # login por CPF/CNPJ, cadastro de operário/gerente
-│   ├── permissions.py          # EhDono / EhGerente / EhOperario
-│   ├── views.py
-│   ├── urls.py
-│   └── admin.py
-│
-├── obras/                     # Obra
-│   ├── models.py                # calcularDistancia() / estaDentroDoRaio() (Haversine)
-│   ├── serializers.py
-│   ├── views.py                 # UC01 Cadastrar Obra, UC04 Configurar Geofence
-│   ├── urls.py
-│   └── admin.py
-│
-├── biometria/                 # BiometriaFacial
-│   ├── models.py                 # RS02: só vetor criptografado, nunca imagem
-│   ├── services.py               # interface ServicoReconhecimentoFacial (Adapter)
-│   ├── serializers.py
-│   ├── views.py                  # UC05 (parte de biometria)
-│   ├── urls.py
-│   └── admin.py
-│
-├── ponto/                     # MarcacaoPonto, LogAuditoria, SessaoOffline
-│   ├── models.py                 # LogAuditoria com save()/delete() bloqueados (RS03)
-│   ├── services.py               # orquestra o fluxo do SQ01 (geofence -> face -> NSR -> hash)
-│   ├── serializers.py
-│   ├── views.py                  # UC06 Registrar Ponto, UC08 Histórico
-│   ├── urls.py
-│   └── admin.py
-│
-└── relatorios/                 # RelatorioFrequencia
-    ├── models.py                  # RF03: dashboard de frequência
-    ├── serializers.py
-    ├── views.py                   # UC03 Visualizar Dashboard
-    ├── urls.py
-    └── admin.py
-```
+- Django 5.0 + Django REST Framework + Simple JWT (autenticação por CPF/CNPJ, não por username)
+- PostgreSQL (produção e desenvolvimento — sem SQLite, para o comportamento de constraints/transactions ser igual em todo lugar)
+- `cryptography` (Fernet) para cifrar o embedding facial em repouso
+- `drf-spectacular` para o schema OpenAPI/Swagger
+- `reportlab` para gerar o recibo de ponto em PDF
+- `gunicorn` + `whitenoise` no deploy
 
-Cada app segue sempre o mesmo miolo: `models.py` (dados + regra de
-negócio que pertence ao próprio objeto, ex. `Obra.esta_dentro_do_raio()`),
-`serializers.py` (validação de entrada/saída da API), `views.py`
-(orquestração + permissões), `urls.py`, `admin.py`. `services.py`
-aparece só em `biometria` e `ponto`, onde a lógica atravessa mais de um
-model e não faz sentido morar dentro de uma única classe.
+## Apps
 
-## Rodando localmente
+| App | Responsabilidade |
+| :--- | :--- |
+| `usuarios` | `Usuario` (base), `PerfilOperario`, `PerfilGerente` (com `TipoGerente`), login, cadastro/edição/remoção de operário, cadastro de gerente |
+| `obras` | `Obra`, geofence (raio/centro), `VinculoGerente`, `Equipe` |
+| `biometria` | `BiometriaFacial` — embedding cifrado (Fernet), nunca a imagem |
+| `ponto` | `MarcacaoPonto`, `LogAuditoria`, contingência (presencial e em papel), recibo em PDF, verificação de integridade |
+| `relatorios` | Geração/listagem de relatórios de ponto por obra/período |
+
+## Como rodar localmente
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m venv venv
+venv\Scripts\activate          # Windows; source venv/bin/activate no Linux/Mac
 pip install -r requirements.txt
 
-cp .env.example .env        # edite os valores conforme necessário
-
-python manage.py makemigrations
+cp .env.example .env           # depois edite o .env com valores locais
 python manage.py migrate
-python manage.py createsuperuser
+python manage.py createsuperuser   # opcional, para acessar /admin/
 python manage.py runserver
 ```
 
-> Este pacote não inclui migrations prontas — como não deu pra rodar o
-> Django neste ambiente pra gerar/testar elas (rede bloqueada pro PyPI),
-> `makemigrations` é o primeiro comando que vocês devem rodar. Depois
-> disso, commitem a pasta `*/migrations/0001_initial.py` gerada.
+### Variáveis de ambiente
 
-## Autenticação
+Todas as variáveis lidas pelo `core/settings.py` estão documentadas, com valores de exemplo e comentários, em [`.env.example`](.env.example) — copie-o para `.env` antes de rodar. Resumo:
 
-Login por **CPF/CNPJ** (não usuário/e-mail), como na tela de Login do
-Figma:
+| Variável | Obrigatória em produção | Para quê |
+| :--- | :---: | :--- |
+| `SECRET_KEY` | Sim | Chave secreta do Django |
+| `DEBUG` | Sim (`False`) | Nunca `True` em produção |
+| `ALLOWED_HOSTS` | Sim | Domínios autorizados a servir a API |
+| `DATABASE_URL` (ou `POSTGRES_*`) | Sim | Conexão com o PostgreSQL |
+| `DB_SSL_REQUIRE` | Depende do provedor | Exige SSL na conexão com o banco |
+| `CORS_ALLOWED_ORIGINS` | Sim | Origens autorizadas a chamar a API |
+| `FACE_LIMIAR_CONFIANCA` | Não (default `0.875`) | Limiar de similaridade de cosseno para aceitar uma identidade |
+| `FACE_ALGORITMO_PADRAO` | Não (default `mobilefacenet-tflite-v1`) | Rótulo do modelo que gerou o embedding salvo |
+| `BIOMETRIA_ENCRYPTION_KEY` | Sim | Chave Fernet para cifrar/decifrar o embedding facial |
+| `BIRDID_API_URL` / `BIRDID_API_TOKEN` | Não (reservado) | Assinatura digital do recibo em PDF (ainda não integrado) |
 
+Não existem mais variáveis de `AWS_*`, `GOOGLE_MAPS_API_KEY` ou `FACE_SERVICE_PROVIDER` no código — eram de uma arquitetura anterior (AWS Rekognition + Geoapify) e foram substituídas pelo reconhecimento facial on-device (MobileFaceNet/TFLite, ver `frontend/README.md`) e pelo GPS nativo do celular.
+
+## Principais endpoints
+
+Todos sob `/api/`. Schema interativo completo em `/api/docs/` (Swagger).
+
+| Método | Rota | Descrição |
+| :--- | :--- | :--- |
+| POST | `/api/auth/login/` | Login por CPF/CNPJ + senha |
+| POST | `/api/auth/refresh/` | Renovar token JWT |
+| GET | `/api/usuarios/me/` | Dados do usuário autenticado |
+| GET | `/api/usuarios/operarios/` | Listar operários (da obra do Gerente/Dono) |
+| POST | `/api/usuarios/operarios/cadastrar/` | Cadastrar operário (dados cadastrais) |
+| PATCH | `/api/usuarios/operarios/{id}/atualizar/` | **Novo** — editar operário (nunca CPF/senha) |
+| DELETE | `/api/usuarios/operarios/{id}/remover/` | Remover operário |
+| POST | `/api/usuarios/gerentes/cadastrar/` | Cadastrar gerente |
+| GET/POST | `/api/obras/` | Listar/criar obras (Dono) |
+| GET/PATCH/DELETE | `/api/obras/{id}/` | **Novo (PATCH/DELETE)** — editar ou apagar obra; apagar retorna **409** se já houver marcações de ponto registradas nela |
+| POST | `/api/obras/{id}/configurar_geofence/` | Definir centro/raio do perímetro (Gerente) |
+| POST | `/api/obras/{id}/vincular_gerente/` | Vincular gerente à obra |
+| GET/POST | `/api/obras/equipes/` | Equipes dentro de uma obra |
+| POST | `/api/biometria/cadastrar/` | Cadastrar embedding facial (cifrado) |
+| GET | `/api/biometria/minha/` | Baixar o próprio embedding autorizado (cache offline do app) |
+| GET | `/api/ponto/horario/` | Horário do servidor (sincronização de relógio) |
+| POST | `/api/marcacoes/` | Registrar ponto (valida geofence + identidade) |
+| POST | `/api/marcacoes/contingencia/` | Contingência presencial (Gerente confirma na hora) |
+| POST | `/api/marcacoes/contingencia-papel/` | Contingência em papel (lançamento retroativo) |
+| GET | `/api/marcacoes/historico/` | Histórico de marcações |
+| GET | `/api/marcacoes/{id}/recibo/` | Recibo da marcação em PDF |
+| GET | `/api/marcacoes/{id}/verificar-integridade/` | Verifica o hash de integridade da marcação |
+| POST/GET | `/api/relatorios/` | Gerar/listar relatórios de ponto |
+
+## Regras de negócio que valem a pena destacar
+
+- **CPF nunca é usado como nome de exibição.** `Usuario.__str__`, o formulário do admin e o gerador de recibo exigem/usam o nome real — não caem mais para `username` (que é o CPF).
+- **Editar operário nunca toca CPF ou senha.** O serializer de atualização (`AtualizarOperarioSerializer`) exclui esses campos explicitamente; é o mesmo padrão de autorização de `RemoverOperarioView` (só o Gerente da obra do operário, ou o Dono da obra).
+- **Apagar obra é bloqueado se há marcações de ponto.** `MarcacaoPonto.obra` é `on_delete=PROTECT` de propósito — histórico de ponto é dado de auditoria e não pode desaparecer porque alguém apagou a obra. Nesse caso a API responde `409 Conflict` com uma mensagem explicando para o Dono encerrar a obra em vez de apagá-la.
+- **O embedding facial nunca sai do banco em texto puro.** `BiometriaFacial` guarda o vetor cifrado com Fernet (`BIOMETRIA_ENCRYPTION_KEY`); o backend também nunca recebe a foto do rosto, só o vetor de 192 dimensões já extraído no celular.
+- **Toda ação administrativa relevante grava `LogAuditoria`/`LogAdministrativo`** (editar/apagar obra, editar operário, marcações) — trilha imutável exigida pela Portaria 671/MTP.
+
+## Testes
+
+```bash
+python manage.py test
+coverage run manage.py test && coverage report
 ```
-POST /api/auth/login/
-{"cpf": "00000000000", "password": "..."}
-→ {"access": "...", "refresh": "...", "papel": "OPERARIO", "tela_inicial": "home_operario"}
-```
 
-## Principais endpoints (rastreáveis aos casos de uso da Etapa 3)
+## Deploy
 
-| Rota | Caso de uso |
-|---|---|
-| `POST /api/auth/login/` | login |
-| `POST /api/obras/` | UC01 — Cadastrar Obra |
-| `POST /api/obras/{id}/configurar_geofence/` | UC04 — Configurar Raio |
-| `POST /api/usuarios/operarios/cadastrar/` | UC05 — Cadastrar Operário |
-| `POST /api/biometria/cadastrar/` | UC05 — Cadastro de biometria |
-| `POST /api/marcacoes/` | UC06 — Registrar Ponto |
-| `GET /api/marcacoes/historico/` | UC08 — Consultar Histórico |
-| `POST /api/relatorios/gerar/` | UC03 — Dashboard |
+**Estado atual:** Render (Blueprint em `render.yaml`), com PostgreSQL gerenciado pelo próprio Render, `gunicorn core.wsgi:application` e `whitenoise` servindo os arquivos estáticos.
 
-## O que ainda depende de decisão/credencial de vocês
-
-- **Face ID**: `biometria/services.py` tem a interface pronta e uma
-  implementação fake pra dev (`FACE_SERVICE_PROVIDER=falso`). Faltam as
-  chamadas reais de rede pro provedor escolhido (`AWS_ACCESS_KEY_ID` etc.).
-- **Assinatura digital ICP-Brasil** (Portaria 671/MTE): as variáveis
-  `BIRDID_API_URL`/`BIRDID_API_TOKEN` já estão em `settings.py`, mas a
-  geração do comprovante em PDF assinado (PAdES) ainda não tem código —
-  entra como o próximo `services.py`, provavelmente dentro de `ponto/`.
-- **Geocoding**: `GOOGLE_MAPS_API_KEY` já está configurada; falta o
-  serviço que converte o endereço digitado no cadastro de obra em
-  lat/long.
-- **Migrations**: gerar com `makemigrations` (ver acima).
-
-## Arquitetura de vocês (CREDIFLOW/GRANJA)
-
-Não consegui acessar os repositórios `Plataforma-Back-CREDIFLOW` e
-`Plataforma-Back-GRANJA` (ambos retornaram 404 — provavelmente privados),
-então este projeto segue convenções padrão de mercado Django/DRF, não o
-padrão exato de vocês. Se colarem um `models.py` ou `settings.py` de
-referência, dá pra ajustar a estrutura pra bater certinho.
-
----
-
-## Atualização — feedback do professor (esta leva)
-
-- **Reconhecimento facial saiu do backend**: o vetor é extraído no dispositivo (SDK on-device gratuito, ex. Google ML Kit / MediaPipe); o backend só compara vetor-a-vetor (`biometria/services.py`, `ServicoSimilaridadeCosseno`). `AmazonRekognitionService` foi comentado, não apagado.
-- **Corrigido bug real** em `ponto/services.py`: a chamada ao Geoapify usava `obra.latitude`/`obra.longitude`, que não existem (`latitude_centro`/`longitude_centro`) — ia quebrar toda batida em produção. Trocado pelo Haversine local que já existia em `Obra`, sem custo de API externa.
-- **Recibo em PDF** (RF16, novo): `ponto/recibo.py`, endpoint `GET /api/marcacoes/{id}/recibo/`.
-- **Verificar integridade** (RF15, novo): `GET /api/marcacoes/{id}/verificar-integridade/`, aberto a Dono, Gerente e o próprio Operário — mostra dispositivo, login (via `registrado_por`), horário e data.
-- **Contingência (RF06) e contingência em papel (RF17)**: não existiam ainda — adicionados em `POST /api/marcacoes/contingencia/` e `POST /api/marcacoes/contingencia-papel/`.
-- **Obra com vários gerentes por especialidade** (`obras.VinculoGerente`, M:N) em vez de `Obra.gerente` único — ⚠️ **ver `MIGRACOES_PENDENTES.md` antes de migrar**, tem um passo manual se já houver dado real.
-- `usuarios.PerfilOperario` ganhou `endereco` e `data_admissao`.
-- `BIRDID_API_URL`/`BIRDID_API_TOKEN` mantidos como estavam — o recibo hoje usa o `hash_integridade` que vocês já geram; a assinatura PAdES real via BirdID continua sendo o próximo passo, comentado em `ponto/recibo.py`.
-
-**Não rodei `makemigrations`/testes aqui** (mesma limitação de rede já registrada no README original) — ver `MIGRACOES_PENDENTES.md`.
+**Planejado:** migração do Render para uma **VPS Linux própria** (Nginx como proxy reverso + Gunicorn + PostgreSQL na mesma máquina ou gerenciado). Nenhuma mudança de código é necessária para essa migração — a aplicação já lê toda a configuração de variáveis de ambiente (`DATABASE_URL`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, etc.), então trocar de hospedagem é uma questão de infraestrutura (provisionar a VPS, configurar Nginx/Gunicorn/systemd, apontar o DNS), não de alterar `settings.py`. Esta seção será atualizada com os passos exatos quando a migração acontecer.
