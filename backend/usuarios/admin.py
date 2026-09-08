@@ -45,7 +45,21 @@ class UsuarioAdmin(UserAdmin):
         ("BuildPoint ID", {"fields": ("cpf", "papel", "ativo")}),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
-        ("BuildPoint ID", {"classes": ("wide",), "fields": ("cpf", "papel")}),
+        (
+            "BuildPoint ID",
+            {
+                # `first_name`/`last_name` entram aqui de propósito: o
+                # formulário padrão do UserAdmin ("Add user") só pedia
+                # username+senha, então dava pra criar (inclusive Dono, via
+                # Admin) um Usuario sem nenhum nome -- Usuario.get_full_name()
+                # ficava vazio e quem exibia "nome" com fallback pro
+                # username via cpf (ex.: ponto/recibo.py) acabava mostrando
+                # o CPF no lugar do nome. Bug relatado: "nome do usuário
+                # aparecendo com CPF".
+                "classes": ("wide",),
+                "fields": ("first_name", "last_name", "cpf", "papel"),
+            },
+        ),
     )
 
     def get_inline_instances(self, request, obj=None):

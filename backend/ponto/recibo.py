@@ -27,7 +27,12 @@ def gerar_pdf_recibo(marcacao) -> bytes:
 
     y -= 10 * mm
     pdf.setFont("Helvetica", 10)
-    operario_nome = marcacao.operario.usuario.get_full_name() or marcacao.operario.usuario.username
+    # NUNCA usar `.username` como fallback de nome -- ele é sempre igual ao
+    # CPF (ver `Usuario.save()`), então isso imprimia o CPF no lugar do
+    # nome sempre que a conta tivesse sido criada sem first_name/last_name
+    # (era possível pelo Django Admin -- ver `UsuarioAdmin.add_fieldsets`,
+    # já corrigido pra sempre pedir o nome na criação).
+    operario_nome = marcacao.operario.usuario.get_full_name() or "(sem nome cadastrado)"
     linhas = [
         f"Operário: {operario_nome}",
         f"CPF: {marcacao.operario.usuario.cpf}",
@@ -38,7 +43,7 @@ def gerar_pdf_recibo(marcacao) -> bytes:
         f"GPS: {marcacao.latitude:.6f}, {marcacao.longitude:.6f} (precisão {marcacao.precisao_gps_metros:.1f} m)",
         f"Dispositivo: {marcacao.dispositivo_id or '—'} ({marcacao.sistema_operacional or '—'})",
         f"Origem: {marcacao.get_origem_display()}",
-        f"Registrado por: {marcacao.registrado_por.get_full_name() or marcacao.registrado_por.username}",
+        f"Registrado por: {marcacao.registrado_por.get_full_name() or '(sem nome cadastrado)'}",
     ]
     for linha in linhas:
         pdf.drawString(15 * mm, y, linha)

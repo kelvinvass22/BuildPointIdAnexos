@@ -53,7 +53,14 @@ class Usuario(AbstractUser):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.get_full_name() or self.username} ({self.get_papel_display()})"
+        # NUNCA cair pro `username` aqui -- ele é sempre igual ao CPF (ver
+        # `save()` acima), então isso já vazou o CPF como se fosse o nome
+        # em telas/relatórios que só tinham `str(usuario)` à mão (bug
+        # relatado: "nome do usuário aparecendo com CPF"). A causa raiz era
+        # o Django Admin permitir criar um Usuario sem nome (ver
+        # `UsuarioAdmin.add_fieldsets`, corrigido); isso aqui é a segunda
+        # camada de defesa pros que já foram criados assim.
+        return f"{self.get_full_name() or '(sem nome cadastrado)'} ({self.get_papel_display()})"
 
     def get_perfil(self):
         """
