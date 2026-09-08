@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from usuarios.models import TipoGerente
+
 from .models import Equipe, Obra, VinculoGerente
 
 
@@ -17,10 +19,10 @@ class VincularGerenteSerializer(serializers.Serializer):
     """
     RF02/UC02 — vincula um gerente já existente (`gerente_id`) OU cadastra
     um novo (`nome_completo`/`cpf`/`email`) na mesma chamada, sempre com
-    uma `especialidade` (ex.: elétrica, civil, segurança do trabalho).
+    uma `especialidade` do catálogo fixo `TipoGerente` (antes texto livre).
     """
 
-    especialidade = serializers.CharField(max_length=100)
+    especialidade = serializers.ChoiceField(choices=TipoGerente.choices)
 
     gerente_id = serializers.UUIDField(required=False)
 
@@ -28,7 +30,7 @@ class VincularGerenteSerializer(serializers.Serializer):
     cpf = serializers.CharField(max_length=14, required=False)
     email = serializers.EmailField(required=False)
     telefone = serializers.CharField(max_length=20, required=False, allow_blank=True)
-    tipo_gerente = serializers.CharField(max_length=80, required=False, allow_blank=True)
+    tipo_gerente = serializers.ChoiceField(choices=TipoGerente.choices, required=False, allow_blank=True, default="")
     senha_inicial = serializers.CharField(write_only=True, required=False, min_length=8)
 
     def validate(self, attrs):
@@ -119,7 +121,11 @@ class ConfigurarGeofenceSerializer(serializers.Serializer):
     latitude = serializers.FloatField(min_value=-90, max_value=90)
     longitude = serializers.FloatField(min_value=-180, max_value=180)
     precisao_gps_metros = serializers.FloatField(required=False)
-    raio_metros = serializers.FloatField(default=5.0, min_value=1, max_value=100)
+    # RNF03: geofencing estrito, mínimo de 5 m (não dava pra configurar
+    # menos que isso mesmo antes -- min_value=1 permitia, o app é que
+    # travava o slider em 10). Teto alinhado com o slider do app (300 m),
+    # pra obras maiores.
+    raio_metros = serializers.FloatField(default=5.0, min_value=5, max_value=300)
 
     def validate(self, attrs):
         # Alternativa do UC04: GPS fraco (> 10 m) -> pedir alta precisão / céu aberto.

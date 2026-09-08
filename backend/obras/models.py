@@ -2,7 +2,10 @@
 import uuid
 from math import asin, cos, radians, sin, sqrt
 
+from django.core.validators import MinValueValidator
 from django.db import models
+
+from usuarios.models import TipoGerente
 
 RAIO_TERRA_METROS = 6371000
 
@@ -39,7 +42,9 @@ class Obra(models.Model):
     )
     latitude_centro = models.FloatField()
     longitude_centro = models.FloatField()
-    raio_metros = models.FloatField(default=5.0)  # RNF03: geofencing estrito de 5 m
+    raio_metros = models.FloatField(
+        default=5.0, validators=[MinValueValidator(5.0)],
+    )  # RNF03: geofencing estrito, mínimo de 5 m (também validado em ConfigurarGeofenceSerializer)
     status = models.CharField(max_length=10, choices=StatusObra.choices, default=StatusObra.ATIVA)
     criada_em = models.DateTimeField(auto_now_add=True)
 
