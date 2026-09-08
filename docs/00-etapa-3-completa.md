@@ -4,6 +4,8 @@
 **Versão:** 1.0  
 **Entrega:** branch `etapa-3` + Pull Request
 
+> **Nota:** a Etapa 3 já foi apresentada e avaliada. Os 6 artefatos abaixo continuam sendo atualizados depois da entrega porque os professores pediram para aprofundar e adicionar mais requisitos/casos de uso, e porque o sistema evoluiu (reconhecimento facial real, edição de operário/obra, funcionamento offline, etc.) — os documentos são mantidos vivos para refletir o que foi de fato implementado, não apenas o que foi entregue naquela data.
+
 ---
 
 ## Índice dos artefatos

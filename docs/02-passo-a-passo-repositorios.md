@@ -5,6 +5,8 @@
 
 > Critério de avaliação (10%): *Documentação no GitHub (branch `etapa-3` + PR)*.
 
+> **Nota (revisão pós-Etapa 3):** este documento registra o processo histórico de criação dos repositórios, feito ainda na fase de planejamento do projeto — por isso descreve uma arquitetura de referência (API em **Node.js + Firebase**) que **não é** a que foi implementada. O sistema real usa **Django REST Framework + PostgreSQL** no backend e **React Native + Expo** no app único (com telas por papel), como descrito em [`../README.md`](../README.md), [`../backend/README.md`](../backend/README.md), [`../frontend/README.md`](../frontend/README.md) e [`01-documento-de-requisitos.md`](01-documento-de-requisitos.md). Mantido aqui como registro do passo a passo de Git/GitHub adotado (branches, PR, estrutura de pastas), que continua válido.
+
 ---
 
 ## Visão da arquitetura em repositórios
