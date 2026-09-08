@@ -1,3 +1,4 @@
+from django.db.models import ProtectedError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -41,6 +42,39 @@ class ObraViewSet(viewsets.ModelViewSet):
             alvo_id=obra.pk,
             detalhes={"campos": list(serializer.validated_data.keys())},
         )
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        RF01 (extensão pedida pelo Dono) -- apagar uma obra. `MarcacaoPonto.
+        obra` é `on_delete=PROTECT` de propósito (RS03: marcação de ponto é
+        auditoria, não pode sumir) -- então uma obra com QUALQUER marcação
+        já registrada não pode ser hard-deletada; o Dono precisa encerrá-la
+        (status=ENCERRADA) em vez de apagar. `VinculoGerente`/`Equipe` são
+        CASCADE (só desfazem o vínculo, não perdem histórico de ponto) e
+        `PerfilOperario.obra` é SET_NULL (operário fica órfão de obra, mas
+        seu cadastro e seu histórico permanecem intactos).
+        """
+        obra = self.get_object()
+        obra_id, obra_nome = obra.pk, obra.nome
+        try:
+            self.perform_destroy(obra)
+        except ProtectedError:
+            return Response(
+                {
+                    "detail": (
+                        "Não é possível apagar esta obra porque já existem marcações de "
+                        "ponto registradas nela (o histórico de ponto não pode ser "
+                        "perdido). Altere o status da obra para \"Encerrada\" em vez de "
+                        "apagá-la."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        registrar_log_administrativo(
+            ator=request.user, acao="APAGAR_OBRA", alvo_tipo="Obra", alvo_id=obra_id,
+            detalhes={"nome": obra_nome},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["post"], permission_classes=[EhGerente])
     def configurar_geofence(self, request, pk=None):
