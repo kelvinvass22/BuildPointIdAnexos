@@ -51,6 +51,17 @@ export const ownerService = {
   },
 
   /**
+   * Apaga uma obra. O backend recusa (409) se já existir alguma marcação
+   * de ponto registrada nela -- nesse caso a alternativa é encerrar a
+   * obra (status ENCERRADA via updateObra) em vez de apagar, pra não
+   * perder o histórico de ponto.
+   * Rota: DELETE /api/obras/{id}/
+   */
+  async deleteObra(obraId) {
+    await api.delete(`/api/obras/${obraId}/`);
+  },
+
+  /**
    * Configura o geofence (RF04): centro + raio do ponto.
    * Rota: POST /api/obras/{id}/configurar_geofence/
    */
@@ -80,9 +91,10 @@ export const ownerService = {
    * Cadastra um gerente novo e já vincula à obra na mesma chamada (Opção B).
    * Rota: POST /api/obras/{id}/vincular_gerente/
    */
-  async vincularGerenteNovo(obraId, { especialidade, nomeCompleto, cpf, email, telefone, senhaInicial }) {
+  async vincularGerenteNovo(obraId, { especialidade, tipoGerente, nomeCompleto, cpf, email, telefone, senhaInicial }) {
     const response = await api.post(`/api/obras/${obraId}/vincular_gerente/`, {
       especialidade,
+      ...(tipoGerente ? { tipo_gerente: tipoGerente } : {}),
       nome_completo: nomeCompleto,
       cpf,
       email,

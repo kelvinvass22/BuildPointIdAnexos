@@ -4,6 +4,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { COLORS, RADIUS, SPACING, SHADOW } from "../../theme/theme";
 import { ownerService } from "../../services/ownerService";
+import ChoiceModal from "../../components/ChoiceModal";
+import { TIPOS_GERENTE, labelDoTipoGerente } from "../../data/tiposGerente";
+
+// Espelha `obras.models.StatusObra` do backend.
+const STATUS_OBRA = [
+  { value: "ATIVA", label: "Ativa" },
+  { value: "PAUSADA", label: "Pausada" },
+  { value: "ENCERRADA", label: "Encerrada" },
+];
+const labelDoStatusObra = (value) => STATUS_OBRA.find((s) => s.value === value)?.label || value || "";
 
 // Tela de detalhe de uma obra já existente. Resolve o caso que faltava:
 // o Dono só conseguia vincular um Gerente NO MOMENTO da criação da obra
@@ -18,8 +28,21 @@ export default function ObraDetailScreen({ navigation, route }) {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [endereco, setEndereco] = useState("");
+
+  const [editingObra, setEditingObra] = useState(false);
+  const [savingObra, setSavingObra] = useState(false);
+  const [deletingObra, setDeletingObra] = useState(false);
+  const [nomeObra, setNomeObra] = useState("");
+  const [numeroArt, setNumeroArt] = useState("");
+  const [statusObra, setStatusObra] = useState("ATIVA");
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
 
   const [especialidade, setEspecialidade] = useState("");
+  const [tipoGerente, setTipoGerente] = useState("");
+  const [especialidadeModalVisible, setEspecialidadeModalVisible] = useState(false);
+  const [tipoGerenteModalVisible, setTipoGerenteModalVisible] = useState(false);
   const [nomeCompleto, setNomeCompleto] = useState("");
   const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
@@ -33,6 +56,10 @@ export default function ObraDetailScreen({ navigation, route }) {
       setError(null);
       const data = await ownerService.getObra(obraId);
       setObra(data);
+      setEndereco(data.endereco || "");
+      setNomeObra(data.nome || "");
+      setNumeroArt(data.numero_art || "");
+      setStatusObra(data.status || "ATIVA");
     } catch (err) {
       console.error("Erro ao carregar obra:", err);
       setError("Não foi possível carregar os dados da obra.");
@@ -48,11 +75,84 @@ export default function ObraDetailScreen({ navigation, route }) {
 
   const resetForm = () => {
     setEspecialidade("");
+    setTipoGerente("");
     setNomeCompleto("");
     setCpf("");
     setEmail("");
     setTelefone("");
     setSenhaInicial("");
+  };
+
+  const handleSaveAddress = async () => {
+    if (!endereco.trim()) {
+      Alert.alert("Endereço obrigatório", "Informe o endereço da obra.");
+      return;
+    }
+    try {
+      setSaving(true);
+      const updated = await ownerService.updateObra(obraId, { endereco: endereco.trim() });
+      setObra((current) => ({ ...current, ...updated }));
+      setEditingAddress(false);
+      Alert.alert("Endereço atualizado", "O endereço da obra foi salvo com sucesso.");
+    } catch (err) {
+      Alert.alert("Erro", err?.response?.data?.detail || "Não foi possível atualizar o endereço.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveObra = async () => {
+    if (!nomeObra.trim()) {
+      Alert.alert("Nome obrigatório", "Informe o nome da obra.");
+      return;
+    }
+    try {
+      setSavingObra(true);
+      const updated = await ownerService.updateObra(obraId, {
+        nome: nomeObra.trim(),
+        numero_art: numeroArt.trim(),
+        status: statusObra,
+      });
+      setObra((current) => ({ ...current, ...updated }));
+      setEditingObra(false);
+      Alert.alert("Obra atualizada", "Os dados da obra foram salvos com sucesso.");
+    } catch (err) {
+      console.error("Erro ao atualizar obra:", err);
+      Alert.alert("Erro", err?.response?.data?.detail || "Não foi possível atualizar a obra.");
+    } finally {
+      setSavingObra(false);
+    }
+  };
+
+  const handleDeleteObra = () => {
+    Alert.alert(
+      "Apagar obra",
+      `Tem certeza que deseja apagar "${obra?.nome}"? Essa ação não pode ser desfeita.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Apagar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeletingObra(true);
+              await ownerService.deleteObra(obraId);
+              Alert.alert("Obra apagada", "A obra foi removida com sucesso.", [
+                { text: "OK", onPress: () => navigation.goBack() },
+              ]);
+            } catch (err) {
+              console.error("Erro ao apagar obra:", err);
+              // 409: já existem marcações de ponto (o backend recusa apagar
+              // pra não perder o histórico -- ver ObraViewSet.destroy).
+              const backendMessage = err?.response?.data?.detail;
+              Alert.alert("Não foi possível apagar", backendMessage || "Tente novamente mais tarde.");
+            } finally {
+              setDeletingObra(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleVincular = async () => {
@@ -64,6 +164,7 @@ export default function ObraDetailScreen({ navigation, route }) {
       setSaving(true);
       await ownerService.vincularGerenteNovo(obraId, {
         especialidade: especialidade.trim(),
+        tipoGerente: tipoGerente.trim(),
         nomeCompleto: nomeCompleto.trim(),
         cpf: cpf.trim(),
         email: email.trim(),
@@ -102,7 +203,9 @@ export default function ObraDetailScreen({ navigation, route }) {
           <Ionicons name="chevron-back" size={22} color={COLORS.textDark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{obra?.nome || "Obra"}</Text>
-        <View style={{ width: 22 }} />
+        <TouchableOpacity onPress={() => setEditingObra((v) => !v)}>
+          <Ionicons name={editingObra ? "close-circle-outline" : "create-outline"} size={22} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: SPACING.lg }}>
@@ -119,7 +222,19 @@ export default function ObraDetailScreen({ navigation, route }) {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Ionicons name="location-outline" size={14} color={COLORS.textMuted} />
-              <Text style={styles.infoText}>{obra.endereco}</Text>
+              {editingAddress ? (
+                <TextInput
+                  style={[styles.input, styles.addressInput]}
+                  value={endereco}
+                  onChangeText={setEndereco}
+                  autoCapitalize="sentences"
+                />
+              ) : (
+                <Text style={styles.infoText}>{obra.endereco}</Text>
+              )}
+              <TouchableOpacity onPress={() => (editingAddress ? handleSaveAddress() : setEditingAddress(true))} disabled={saving}>
+                {saving ? <ActivityIndicator size="small" color={COLORS.primary} /> : <Ionicons name={editingAddress ? "checkmark-circle-outline" : "create-outline"} size={20} color={COLORS.primary} />}
+              </TouchableOpacity>
             </View>
             {!!obra.numero_art && (
               <View style={styles.infoRow}>
@@ -131,6 +246,58 @@ export default function ObraDetailScreen({ navigation, route }) {
               <Ionicons name="people-outline" size={14} color={COLORS.textMuted} />
               <Text style={styles.infoText}>{obra.total_operarios ?? 0} operário(s)</Text>
             </View>
+            <View style={styles.infoRow}>
+              <Ionicons name="pulse-outline" size={14} color={COLORS.textMuted} />
+              <Text style={styles.infoText}>Status: {labelDoStatusObra(obra.status)}</Text>
+            </View>
+          </View>
+        )}
+
+        {editingObra && (
+          <View style={styles.formCard}>
+            <Text style={styles.formTitle}>Editar obra</Text>
+
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Nome da obra</Text>
+              <TextInput style={styles.input} value={nomeObra} onChangeText={setNomeObra} placeholderTextColor={COLORS.placeholder} />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Número da ART/RRT (opcional)</Text>
+              <TextInput style={styles.input} value={numeroArt} onChangeText={setNumeroArt} placeholderTextColor={COLORS.placeholder} />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Status</Text>
+              <TouchableOpacity style={styles.input} onPress={() => setStatusModalVisible(true)}>
+                <Text style={styles.selectValue}>{labelDoStatusObra(statusObra)}</Text>
+              </TouchableOpacity>
+            </View>
+            <ChoiceModal
+              visible={statusModalVisible}
+              title="Status da obra"
+              options={STATUS_OBRA}
+              selectedValue={statusObra}
+              onSelect={setStatusObra}
+              onClose={() => setStatusModalVisible(false)}
+            />
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveObra} disabled={savingObra}>
+              {savingObra ? (
+                <ActivityIndicator size="small" color={COLORS.textOnPrimary} />
+              ) : (
+                <Text style={styles.saveBtnText}>Salvar dados da obra</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteObra} disabled={deletingObra}>
+              {deletingObra ? (
+                <ActivityIndicator size="small" color={COLORS.danger} />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+                  <Text style={styles.deleteBtnText}>Apagar obra</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         )}
 
@@ -152,7 +319,7 @@ export default function ObraDetailScreen({ navigation, route }) {
             </View>
             <View style={{ marginLeft: SPACING.sm, flex: 1 }}>
               <Text style={styles.managerName}>{v.gerente_nome}</Text>
-              <Text style={styles.managerSub}>{v.especialidade}</Text>
+              <Text style={styles.managerSub}>{labelDoTipoGerente(v.especialidade)}</Text>
             </View>
           </View>
         ))}
@@ -163,14 +330,36 @@ export default function ObraDetailScreen({ navigation, route }) {
 
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Especialidade</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex.: Civil, Elétrica, Hidráulica"
-                placeholderTextColor={COLORS.placeholder}
-                value={especialidade}
-                onChangeText={setEspecialidade}
-              />
+              <TouchableOpacity style={styles.input} onPress={() => setEspecialidadeModalVisible(true)}>
+                <Text style={especialidade ? styles.selectValue : styles.selectPlaceholder}>
+                  {especialidade ? labelDoTipoGerente(especialidade) : "Selecione a especialidade"}
+                </Text>
+              </TouchableOpacity>
             </View>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Tipo de gerente</Text>
+              <TouchableOpacity style={styles.input} onPress={() => setTipoGerenteModalVisible(true)}>
+                <Text style={tipoGerente ? styles.selectValue : styles.selectPlaceholder}>
+                  {tipoGerente ? labelDoTipoGerente(tipoGerente) : "Selecione o tipo de gerente (opcional)"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <ChoiceModal
+              visible={especialidadeModalVisible}
+              title="Especialidade"
+              options={TIPOS_GERENTE}
+              selectedValue={especialidade}
+              onSelect={setEspecialidade}
+              onClose={() => setEspecialidadeModalVisible(false)}
+            />
+            <ChoiceModal
+              visible={tipoGerenteModalVisible}
+              title="Tipo de gerente"
+              options={TIPOS_GERENTE}
+              selectedValue={tipoGerente}
+              onSelect={setTipoGerente}
+              onClose={() => setTipoGerenteModalVisible(false)}
+            />
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Nome completo</Text>
               <TextInput
@@ -266,6 +455,7 @@ const styles = StyleSheet.create({
   infoCard: { backgroundColor: COLORS.card, borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.md, ...SHADOW },
   infoRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
   infoText: { fontSize: 12, color: COLORS.textMuted, marginLeft: 6 },
+  addressInput: { flex: 1, marginLeft: 6, paddingVertical: 4, minHeight: 34 },
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -313,6 +503,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textDark,
   },
+  selectValue: { fontSize: 13, color: COLORS.textDark },
+  selectPlaceholder: { fontSize: 13, color: COLORS.placeholder },
   saveBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 14, alignItems: "center" },
   saveBtnText: { color: COLORS.textOnPrimary, fontWeight: "700", fontSize: 14 },
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.md,
+    paddingVertical: 12,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+  },
+  deleteBtnText: { color: COLORS.danger, fontWeight: "700", fontSize: 13, marginLeft: 6 },
 });
