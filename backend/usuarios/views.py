@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import PerfilOperario
 from .permissions import EhDono, EhGerente
 from .serializers import (
+    AtualizarOperarioSerializer,
     CadastrarGerenteSerializer,
     CadastrarOperarioSerializer,
     LoginSerializer,
@@ -80,6 +81,63 @@ class ListarOperariosView(generics.ListAPIView):
         if usuario.papel == "GERENTE":
             return qs.filter(obra__gerentes=usuario)
         return qs.filter(obra__dono=usuario)
+
+
+class AtualizarOperarioView(APIView):
+    """
+    Corrige os dados cadastrais de um operário já existente (RF05 --
+    hoje só dava pra cadastrar, não pra editar). CPF e senha não são
+    editáveis por aqui (ver AtualizarOperarioSerializer).
+
+    PATCH /api/usuarios/operarios/{id}/atualizar/
+    """
+
+    permission_classes = [EhGerente | EhDono]
+
+    def patch(self, request, pk):
+        try:
+            perfil = PerfilOperario.objects.select_related("usuario", "obra").get(pk=pk)
+        except PerfilOperario.DoesNotExist:
+            return Response({"detail": "Operário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+        autorizado = (
+            request.user.papel == "GERENTE" and perfil.obra and perfil.obra.gerentes.filter(pk=request.user.pk).exists()
+        ) or (request.user.papel == "DONO" and perfil.obra and perfil.obra.dono_id == request.user.pk)
+        if not autorizado:
+            return Response({"detail": "Você não gerencia este operário."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = AtualizarOperarioSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        dados = dict(serializer.validated_data)
+        if not dados:
+            return Response({"detail": "Nenhum campo para atualizar."}, status=status.HTTP_400_BAD_REQUEST)
+
+        campos_usuario = []
+        nome_completo = dados.pop("nome_completo", None)
+        if nome_completo:
+            partes_nome = nome_completo.split(" ", 1)
+            perfil.usuario.first_name = partes_nome[0]
+            perfil.usuario.last_name = partes_nome[1] if len(partes_nome) > 1 else ""
+            campos_usuario += ["first_name", "last_name"]
+        if "email" in dados:
+            perfil.usuario.email = dados.pop("email")
+            campos_usuario.append("email")
+        if campos_usuario:
+            perfil.usuario.save(update_fields=campos_usuario)
+
+        for campo, valor in dados.items():
+            setattr(perfil, campo, valor)
+        if dados:
+            perfil.save(update_fields=list(dados.keys()))
+
+        registrar_log_administrativo(
+            ator=request.user,
+            acao="ATUALIZAR_OPERARIO",
+            alvo_tipo="PerfilOperario",
+            alvo_id=perfil.pk,
+            detalhes={"campos": campos_usuario + list(dados.keys())},
+        )
+        return Response(PerfilOperarioSerializer(perfil).data)
 
 
 class RemoverOperarioView(APIView):

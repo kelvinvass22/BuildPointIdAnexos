@@ -124,6 +124,32 @@ class CadastrarOperarioSerializer(serializers.Serializer):
         )
 
 
+class AtualizarOperarioSerializer(serializers.Serializer):
+    """
+    Edição dos dados cadastrais de um operário já existente (RF05 -- antes
+    só dava pra cadastrar, nunca corrigir um cadastro feito errado).
+
+    De propósito FORA daqui: `cpf` (é a credencial de login/username e o
+    identificador de auditoria da pessoa -- trocar exige revalidar
+    duplicidade e também atualizar o username; uma correção de CPF errado
+    deve ser feita via Django Admin) e `senha_inicial` (reset de senha é
+    um fluxo à parte, não uma edição de cadastro).
+    """
+
+    nome_completo = serializers.CharField(max_length=150, required=False)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    cargo = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    tipo_vinculo = serializers.ChoiceField(choices=["PROPRIO", "TERCEIRIZADO"], required=False)
+    empresa_terceirizada = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    endereco = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    data_admissao = serializers.DateField(required=False, allow_null=True)
+
+    def validate_nome_completo(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Nome não pode ficar em branco.")
+        return value
+
+
 class CadastrarGerenteSerializer(serializers.Serializer):
     """UC02 — Vincular Gerente (RF02), feito pelo Dono."""
 
